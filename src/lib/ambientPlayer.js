@@ -27,11 +27,19 @@ function notify() {
   listeners.forEach((fn) => fn(state));
 }
 
+// El oído percibe el volumen de forma logarítmica, no lineal (mitad del slider no
+// suena "a mitad de volumen"). Una curva cúbica sobre la posición del slider (0–1)
+// aproxima bien esa percepción, igual que el taper "audio"/logarítmico de un
+// potenciómetro real, sin necesitar cálculos en dB.
+function volumeToGain(position) {
+  return position * position * position;
+}
+
 function ensureAudio() {
   if (!audio) {
     audio = new Audio();
     audio.loop = state.loop;
-    audio.volume = state.volume;
+    audio.volume = volumeToGain(state.volume);
     audio.addEventListener("ended", () => {
       state.playing = false;
       notify();
@@ -61,7 +69,7 @@ export function playTrack(track) {
     state.trackId = track.id;
   }
   el.loop = state.loop;
-  el.volume = state.volume;
+  el.volume = volumeToGain(state.volume);
   state.playing = true;
   notify();
 
@@ -91,6 +99,6 @@ export function toggleLoop() {
 
 export function setVolume(volume) {
   state.volume = volume;
-  if (audio) audio.volume = volume;
+  if (audio) audio.volume = volumeToGain(volume);
   notify();
 }
