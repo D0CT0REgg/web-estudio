@@ -4,6 +4,7 @@ import { escapeHtml } from "../../lib/escapeHtml.js";
 
 const TRIMESTER_LABELS = { 1: "1er trimestre", 2: "2º trimestre", 3: "3er trimestre" };
 const RESET_CONFIRM_WORD = "BORRAR";
+const RESET_PASSWORD = "4891";
 
 function currentAcademicYearGuess() {
   const now = new Date();
@@ -89,10 +90,27 @@ export function renderSettingsView(container) {
             Esto elimina para siempre todas tus sesiones de estudio, tareas, objetivos del día, simulacros de
             examen y la firma del contrato. <strong>No se puede deshacer.</strong>
           </p>
-          <p>
-            Escribe <strong>${RESET_CONFIRM_WORD}</strong> para confirmar.
-          </p>
-          <input type="text" id="reset-confirm-input" class="goal-input" placeholder="${RESET_CONFIRM_WORD}" />
+
+          <div id="reset-password-section">
+            <p>Introduce la contraseña para continuar.</p>
+            <input
+              type="password"
+              id="reset-password-input"
+              class="goal-input"
+              placeholder="Contraseña"
+              inputmode="numeric"
+              autocomplete="off"
+            />
+            <p class="quick-add-error" id="reset-password-error" hidden>Contraseña incorrecta.</p>
+          </div>
+
+          <div id="reset-confirm-section" hidden>
+            <p>
+              Escribe <strong>${RESET_CONFIRM_WORD}</strong> para confirmar.
+            </p>
+            <input type="text" id="reset-confirm-input" class="goal-input" placeholder="${RESET_CONFIRM_WORD}" />
+          </div>
+
           <p class="quick-add-error" id="reset-error" hidden>No se pudo borrar. Inténtalo de nuevo.</p>
           <div class="quick-add-actions">
             <button type="button" class="ft-btn" id="reset-cancel-btn">Cancelar</button>
@@ -119,6 +137,10 @@ export function renderSettingsView(container) {
     openResetBtn: container.querySelector("#open-reset-modal-btn"),
     resetModal: container.querySelector("#reset-modal"),
     resetBackdrop: container.querySelector("#reset-modal-backdrop"),
+    resetPasswordSection: container.querySelector("#reset-password-section"),
+    resetPasswordInput: container.querySelector("#reset-password-input"),
+    resetPasswordError: container.querySelector("#reset-password-error"),
+    resetConfirmSection: container.querySelector("#reset-confirm-section"),
     resetInput: container.querySelector("#reset-confirm-input"),
     resetConfirmBtn: container.querySelector("#reset-confirm-btn"),
     resetCancelBtn: container.querySelector("#reset-cancel-btn"),
@@ -272,10 +294,15 @@ export function renderSettingsView(container) {
 
   // ---- Zona de peligro ----
   function openResetModal() {
+    els.resetPasswordInput.value = "";
+    els.resetPasswordError.hidden = true;
+    els.resetPasswordSection.hidden = false;
+    els.resetConfirmSection.hidden = true;
     els.resetInput.value = "";
     els.resetConfirmBtn.disabled = true;
     els.resetError.hidden = true;
     els.resetModal.hidden = false;
+    els.resetPasswordInput.focus();
   }
 
   function closeResetModal() {
@@ -285,6 +312,21 @@ export function renderSettingsView(container) {
   els.openResetBtn.addEventListener("click", openResetModal);
   els.resetCancelBtn.addEventListener("click", closeResetModal);
   els.resetBackdrop.addEventListener("click", closeResetModal);
+
+  els.resetPasswordInput.addEventListener("input", () => {
+    if (els.resetPasswordInput.value !== RESET_PASSWORD) return;
+    els.resetPasswordError.hidden = true;
+    els.resetPasswordSection.hidden = true;
+    els.resetConfirmSection.hidden = false;
+    els.resetInput.focus();
+  });
+
+  els.resetPasswordInput.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (els.resetPasswordInput.value !== RESET_PASSWORD) {
+      els.resetPasswordError.hidden = false;
+    }
+  });
 
   els.resetInput.addEventListener("input", () => {
     els.resetConfirmBtn.disabled = els.resetInput.value !== RESET_CONFIRM_WORD;
