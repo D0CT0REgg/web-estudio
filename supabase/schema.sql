@@ -119,6 +119,28 @@ create table if not exists user_settings (
   ]'::jsonb
 );
 
+-- Mazos de tarjetas de memorización
+create table if not exists flashcard_decks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  title text not null,
+  subject_tag text,
+  created_at timestamptz not null default now()
+);
+
+-- Tarjetas individuales (anverso/reverso) de un mazo. box_level/next_review_at
+-- implementan repetición espaciada estilo Leitner (ver lib/flashcardsCalc.js).
+create table if not exists flashcards (
+  id uuid primary key default gen_random_uuid(),
+  deck_id uuid not null references flashcard_decks on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,
+  front text not null,
+  back text not null,
+  box_level int not null default 1 check (box_level between 1 and 5),
+  next_review_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 -- === Row Level Security ===
 -- Activa RLS y añade una única política por tabla: el usuario solo puede
 -- leer/escribir filas donde user_id coincide con su propio auth.uid().
@@ -132,6 +154,8 @@ alter table exam_simulations enable row level security;
 alter table exam_errors enable row level security;
 alter table trimesters enable row level security;
 alter table user_settings enable row level security;
+alter table flashcard_decks enable row level security;
+alter table flashcards enable row level security;
 
 create policy "owner_all_sessions" on sessions
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -155,6 +179,12 @@ create policy "owner_all_trimesters" on trimesters
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create policy "owner_all_user_settings" on user_settings
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "owner_all_flashcard_decks" on flashcard_decks
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "owner_all_flashcards" on flashcards
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 -- Bucket privado de Storage para los PDFs de los simulacros (enunciado + corrección).

@@ -14,6 +14,7 @@ import { renderSettingsView } from "./components/settings/settingsView.js";
 import { renderEstadisticasView } from "./components/estadisticas/estadisticasView.js";
 import { renderContratoView } from "./components/contrato/contratoView.js";
 import { renderAmbienteView } from "./components/ambiente/ambienteView.js";
+import { renderFlashcardsView } from "./components/flashcards/flashcardsView.js";
 import { skeletonCard } from "./lib/skeleton.js";
 
 initTheme();
@@ -32,6 +33,7 @@ const VIEWS = {
   estadisticas: (contentEl) => renderEstadisticasView(contentEl),
   contrato: (contentEl) => renderContratoView(contentEl),
   ambiente: (contentEl) => renderAmbienteView(contentEl),
+  tarjetas: (contentEl) => renderFlashcardsView(contentEl),
   // pdfjs-dist pesa ~700KB: se carga solo al entrar en esta sección, no en el bundle inicial.
   simulacro: (contentEl) => {
     contentEl.innerHTML = skeletonCard({ lines: 5 });

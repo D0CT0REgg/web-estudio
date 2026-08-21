@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { key: "descanso", label: "Descanso", icon: "🌿", enabled: true },
   { key: "tareas", label: "Tareas del día", icon: "📝", enabled: true },
   { key: "ambiente", label: "Ambiente", icon: "🎧", enabled: true },
+  { key: "tarjetas", label: "Tarjetas", icon: "🧠", enabled: true },
   { key: "contrato", label: "Contrato", icon: "📜", enabled: true },
   { key: "estadisticas", label: "Estadísticas", icon: "📊", enabled: true },
   { key: "simulacro", label: "Simulacro de examen", icon: "🎯", enabled: true },
