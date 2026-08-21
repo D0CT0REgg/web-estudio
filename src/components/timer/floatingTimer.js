@@ -1,5 +1,6 @@
 import { subscribe, togglePause } from "../../lib/sessionStore.js";
 import { finishSession } from "../../lib/sessionLifecycle.js";
+import { notify } from "../../lib/notifications.js";
 
 const MODE_LABELS = {
   pomodoro: "Pomodoro",
@@ -171,8 +172,22 @@ function toggleMinimize() {
 
 let suppressed = false;
 let lastState = { status: "idle" };
+let trackedStatus = "idle";
+
+function notifyPhaseChange(state) {
+  if (state.status === "break") {
+    notify("Descanso", `Se acabó el bloque de trabajo. Tómate un respiro de ${state.breakMinutes || ""} min.`.trim());
+  } else if (state.status === "running") {
+    notify("¡A trabajar!", "Se acabó el descanso. Toca volver a la tarea.");
+  }
+}
 
 function render(state) {
+  if (state.autoPhaseChange && state.status !== trackedStatus) {
+    notifyPhaseChange(state);
+  }
+  trackedStatus = state.status;
+
   lastState = state;
   applyRender();
 }

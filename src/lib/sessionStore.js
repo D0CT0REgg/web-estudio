@@ -13,6 +13,7 @@ let intervalId = null;
 
 function notify() {
   listeners.forEach((fn) => fn(state));
+  state.autoPhaseChange = false;
 }
 
 export function subscribe(fn) {
@@ -37,7 +38,7 @@ function tick() {
   if (state.phaseEndAt !== null) {
     const remainingMs = state.phaseEndAt - now;
     if (remainingMs <= 0) {
-      advancePhase(now);
+      advancePhase(now, true);
       return;
     }
     state.phaseRemainingSeconds = Math.ceil(remainingMs / 1000);
@@ -48,7 +49,7 @@ function tick() {
   notify();
 }
 
-function advancePhase(now) {
+function advancePhase(now, auto) {
   if (state.status === "running") {
     state.cyclesCompleted += 1;
     state.status = "break";
@@ -62,6 +63,10 @@ function advancePhase(now) {
     state.phaseRemainingSeconds = state.workMinutes ? state.workMinutes * 60 : 0;
   }
   state.lastTickAt = now;
+  // Flag de un solo uso: avisa a quien esté suscrito de que este cambio de fase
+  // fue automático (temporizador llegando a 0), no un "saltar fase" manual, para
+  // que solo el primero dispare una notificación del sistema. Se consume en notify().
+  state.autoPhaseChange = Boolean(auto);
   notify();
 }
 
@@ -108,7 +113,7 @@ export function skipPhase() {
     state.workAccumulatedMs += now - state.lastTickAt;
   }
   state.lastTickAt = now;
-  advancePhase(now);
+  advancePhase(now, false);
 }
 
 /**

@@ -12,6 +12,8 @@ import {
 import { finishSession, switchSessionTask } from "../../lib/sessionLifecycle.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
 import { setFloatingTimerSuppressed } from "../timer/floatingTimer.js";
+import { requestNotificationPermission } from "../../lib/notifications.js";
+import { skeletonList } from "../../lib/skeleton.js";
 
 const MODES = [
   { key: "pomodoro", label: "Pomodoro", icon: "🍅", desc: "25/5 min (personalizable)" },
@@ -279,7 +281,7 @@ export function renderSessionView(container) {
   // ---- Tareas (lista única: seleccionar antes de empezar / cambiar activa en marcha) ----
   function renderTaskList() {
     if (state.tasksLoading) {
-      els.taskList.innerHTML = `<p class="task-list-empty">Cargando tareas de hoy…</p>`;
+      els.taskList.innerHTML = skeletonList({ rows: 3 });
       return;
     }
     if (state.tasks.length === 0) {
@@ -507,6 +509,7 @@ export function renderSessionView(container) {
   els.startBtn.addEventListener("click", () => {
     const task = state.tasks.find((t) => t.id === state.selectedTaskId);
     if (!task) return;
+    if (state.mode === "pomodoro" || state.mode === "52-17") requestNotificationPermission();
     startSession({
       mode: state.mode,
       task,
