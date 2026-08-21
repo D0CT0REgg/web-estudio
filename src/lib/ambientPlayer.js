@@ -2,14 +2,16 @@
 // depende de ninguna vista montada), igual que sessionStore.js para el timer de estudio.
 // Así la música sigue sonando aunque navegues a otra sección.
 
+const SONG_BASE = `${import.meta.env.BASE_URL}song/`;
+
 export const TRACKS = [
-  { id: "rain", label: "Lluvia", icon: "🌧️", file: "/song/rain.mp3" },
-  { id: "forest", label: "Bosque", icon: "🌲", file: "/song/forest.mp3" },
-  { id: "white_noise1", label: "Ruido marrón", icon: "📻", file: "/song/white_noise1.mp3" },
-  { id: "white_noise2", label: "Ruido blanco", icon: "📻", file: "/song/white_noise2.mp3" },
-  { id: "lofi_music", label: "Lo-fi", icon: "🎵", file: "/song/lofi_music.mp3" },
-  { id: "chill_music1", label: "Chill 1", icon: "🎶", file: "/song/chill_music1.mp3" },
-  { id: "chill_music2", label: "Chill 2", icon: "🎶", file: "/song/chill_music2.mp3" },
+  { id: "rain", label: "Lluvia", icon: "🌧️", file: `${SONG_BASE}rain.mp3` },
+  { id: "forest", label: "Bosque", icon: "🌲", file: `${SONG_BASE}forest.mp3` },
+  { id: "white_noise1", label: "Ruido marrón", icon: "📻", file: `${SONG_BASE}white_noise1.mp3` },
+  { id: "white_noise2", label: "Ruido blanco", icon: "📻", file: `${SONG_BASE}white_noise2.mp3` },
+  { id: "lofi_music", label: "Lo-fi", icon: "🎵", file: `${SONG_BASE}lofi_music.mp3` },
+  { id: "chill_music1", label: "Chill 1", icon: "🎶", file: `${SONG_BASE}chill_music1.mp3` },
+  { id: "chill_music2", label: "Chill 2", icon: "🎶", file: `${SONG_BASE}chill_music2.mp3` },
 ];
 
 const listeners = new Set();
