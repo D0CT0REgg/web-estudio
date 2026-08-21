@@ -2,6 +2,7 @@ import { fetchExamSimulation, getSignedPdfUrl, startExam, finishExam } from "../
 import { mountPdfViewer } from "../../lib/pdfViewer.js";
 import { setNavLocked } from "../../lib/navLock.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonCard } from "../../lib/skeleton.js";
 
 function formatTime(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds || 0));
@@ -14,7 +15,7 @@ function formatTime(totalSeconds) {
 }
 
 export async function renderExamModeScreen(container, nav, examId) {
-  container.innerHTML = `<p class="stats-loading">Cargando examen…</p>`;
+  container.innerHTML = skeletonCard({ lines: 5 });
 
   let exam;
   try {

@@ -2,6 +2,7 @@ import { fetchExamSimulation, getSignedPdfUrl, uploadCorrectionPdf, saveCorrecti
 import { mountPdfViewer } from "../../lib/pdfViewer.js";
 import { getGradeComment } from "../../lib/examStatsCalc.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonCard } from "../../lib/skeleton.js";
 
 const ERROR_TYPES = [
   "No sabía la teoría",
@@ -17,7 +18,7 @@ const ERROR_TYPES = [
 ];
 
 export async function renderExamCorrectionScreen(container, nav, examId) {
-  container.innerHTML = `<p class="stats-loading">Cargando…</p>`;
+  container.innerHTML = skeletonCard({ lines: 5 });
 
   let exam;
   try {

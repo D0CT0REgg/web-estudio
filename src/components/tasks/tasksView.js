@@ -11,6 +11,7 @@ import {
 } from "../../lib/tasksApi.js";
 import { renderTaskFormFields } from "./taskFormFields.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonList } from "../../lib/skeleton.js";
 
 export function renderTasksView(container) {
   const state = {
@@ -315,7 +316,7 @@ export function renderTasksView(container) {
 
   function renderTaskListFull() {
     if (state.tasksLoading) {
-      els.fullList.innerHTML = `<p class="task-list-empty">Cargando tareas de hoy…</p>`;
+      els.fullList.innerHTML = skeletonList({ rows: 4 });
       return;
     }
     if (state.tasks.length === 0) {

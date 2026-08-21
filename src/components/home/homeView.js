@@ -1,6 +1,7 @@
 import { fetchTodaySessions } from "../../lib/sessionsApi.js";
 import { fetchTodayTasks, fetchTodayGoal } from "../../lib/tasksApi.js";
 import { sumMinutes, countCompletedPomodoros } from "../../lib/statsCalc.js";
+import { skeletonInline } from "../../lib/skeleton.js";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -29,23 +30,23 @@ export function renderHomeView(contentEl, { onStartSession } = {}) {
       <div class="summary-cards">
         <div class="summary-card">
           <span class="summary-icon" aria-hidden="true">⏱️</span>
-          <span class="summary-value" id="minutes-today">--</span>
+          <span class="summary-value" id="minutes-today">${skeletonInline({ width: "2.4rem" })}</span>
           <span class="summary-label">Minutos estudiados hoy</span>
         </div>
         <div class="summary-card">
           <span class="summary-icon" aria-hidden="true">🍅</span>
-          <span class="summary-value" id="pomodoros-today">--</span>
+          <span class="summary-value" id="pomodoros-today">${skeletonInline({ width: "1.6rem" })}</span>
           <span class="summary-label">Pomodoros completados hoy</span>
         </div>
       </div>
 
       <div class="today-goal">
-        <p class="goal-text" id="goal-text">Cargando…</p>
+        <p class="goal-text" id="goal-text">${skeletonInline({ width: "70%" })}</p>
         <div class="tasks-progress">
           <div class="tasks-progress-bar">
             <div class="tasks-progress-fill" id="tasks-progress-fill" style="width: 0%"></div>
           </div>
-          <p class="tasks-counter" id="tasks-counter">Cargando…</p>
+          <p class="tasks-counter" id="tasks-counter">${skeletonInline({ width: "45%" })}</p>
         </div>
       </div>
 

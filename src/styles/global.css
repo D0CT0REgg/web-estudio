@@ -1792,6 +1792,49 @@ body::before {
   color: var(--text-muted);
 }
 
+/* === Skeletons de carga === */
+.skeleton-block {
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, var(--border) 25%, var(--accent-soft) 50%, var(--border) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.skeleton-card {
+  padding: 1rem 1.2rem;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block {
+    animation: none;
+    background: var(--border);
+  }
+}
+
 .stats-subtitle {
   margin: -0.6rem 0 1.1rem;
   font-size: 0.85rem;

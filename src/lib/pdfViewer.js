@@ -1,5 +1,6 @@
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { skeletonCard } from "./skeleton.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -28,7 +29,7 @@ export async function mountPdfViewer(container, pdfUrl) {
   const pagesEl = container.querySelector('[data-role="pages"]');
   const zoomLabelEl = container.querySelector('[data-role="zoom-label"]');
 
-  pagesEl.innerHTML = `<p class="pdf-viewer-status">Cargando PDF…</p>`;
+  pagesEl.innerHTML = skeletonCard({ lines: 8 });
 
   let scale = 1;
   let pdfDoc = null;

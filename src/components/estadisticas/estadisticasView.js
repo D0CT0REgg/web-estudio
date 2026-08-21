@@ -1,4 +1,5 @@
 import { toPng } from "html-to-image";
+import { skeletonCard, skeletonLines } from "../../lib/skeleton.js";
 import { fetchAllSessions } from "../../lib/statsApi.js";
 import { fetchExamSimulations } from "../../lib/examApi.js";
 import { fetchTrimesters } from "../../lib/trimestersApi.js";
@@ -134,7 +135,14 @@ export function renderEstadisticasView(container) {
         <button type="button" class="ft-btn" id="export-image-btn">🖼️ Descargar imagen</button>
       </div>
 
-      <p class="stats-loading" id="stats-loading">Cargando estadísticas…</p>
+      <div class="stats-loading" id="stats-loading">
+        <div class="summary-cards">
+          ${skeletonCard({ lines: 1 })}
+          ${skeletonCard({ lines: 1 })}
+          ${skeletonCard({ lines: 1 })}
+        </div>
+        <div class="setup-block">${skeletonLines(4)}</div>
+      </div>
 
       <div id="stats-content" hidden>
         <div class="summary-cards" id="summary-cards"></div>

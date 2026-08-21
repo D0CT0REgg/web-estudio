@@ -1,5 +1,6 @@
 import { fetchContract, signContract } from "../../lib/contractApi.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonCard } from "../../lib/skeleton.js";
 
 const CONTRACT_TITLE = "Contrato conmigo mismo/a";
 
@@ -89,7 +90,7 @@ function daysSince(dateValue) {
 }
 
 export function renderContratoView(container) {
-  container.innerHTML = `<p class="stats-loading">Cargando…</p>`;
+  container.innerHTML = `<div class="setup-block">${skeletonCard({ lines: 4 })}</div>`;
 
   fetchContract()
     .then((contract) => {

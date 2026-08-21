@@ -2,9 +2,10 @@ import { fetchExamSimulation, fetchExamErrors, getSignedPdfUrl } from "../../lib
 import { mountPdfViewer } from "../../lib/pdfViewer.js";
 import { getGradeComment } from "../../lib/examStatsCalc.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonCard } from "../../lib/skeleton.js";
 
 export async function renderExamDetailScreen(container, nav, examId) {
-  container.innerHTML = `<p class="stats-loading">Cargando…</p>`;
+  container.innerHTML = skeletonCard({ lines: 5 });
 
   let exam;
   let errors;

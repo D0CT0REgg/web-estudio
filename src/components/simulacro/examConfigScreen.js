@@ -8,6 +8,7 @@ import {
   replaceExamPdf,
   uploadCorrectionPdf,
 } from "../../lib/examApi.js";
+import { skeletonCard } from "../../lib/skeleton.js";
 
 function toLocalDatetimeInputValue(isoString) {
   const d = new Date(isoString);
@@ -37,7 +38,7 @@ export async function renderExamConfigScreen(container, nav, examId) {
     <section class="view-simulacro fx-fade-in" aria-labelledby="exam-config-title">
       <h1 id="exam-config-title">${isEdit ? "Editar simulacro" : "Nuevo simulacro"}</h1>
 
-      <p class="stats-loading" id="exam-config-loading" ${isEdit ? "" : "hidden"}>Cargando…</p>
+      <div id="exam-config-loading" ${isEdit ? "" : "hidden"}>${skeletonCard({ lines: 4 })}</div>
 
       <div id="exam-config-form" ${isEdit ? "hidden" : ""}>
         <div class="setup-block">

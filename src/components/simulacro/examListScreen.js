@@ -1,5 +1,6 @@
 import { fetchExamSimulations, deleteExamSimulation } from "../../lib/examApi.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
+import { skeletonList } from "../../lib/skeleton.js";
 
 const STATUS_GROUPS = [
   { status: "pending_correction", title: "Pendientes de corregir" },
@@ -108,7 +109,7 @@ export function renderExamListScreen(container, nav) {
 
   function renderGroups() {
     if (state.loading) {
-      els.groups.innerHTML = `<p class="task-list-empty">Cargando simulacros…</p>`;
+      els.groups.innerHTML = skeletonList({ rows: 4 });
       return;
     }
     if (state.exams.length === 0) {
