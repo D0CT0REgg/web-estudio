@@ -1,3 +1,7 @@
+import { fetchTodaySessions } from "../../lib/sessionsApi.js";
+import { fetchTodayTasks, fetchTodayGoal } from "../../lib/tasksApi.js";
+import { sumMinutes, countCompletedPomodoros } from "../../lib/statsCalc.js";
+
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "Buenos días";
@@ -14,11 +18,6 @@ function getTodayLabel() {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
-/**
- * Vista Inicio. El resumen del día (minutos, pomodoros, objetivo, tareas) sigue con
- * datos de marcador (--); la conexión con Supabase para calcular esos valores reales
- * llega en un paso posterior.
- */
 export function renderHomeView(contentEl, { onStartSession } = {}) {
   contentEl.innerHTML = `
     <section class="view-inicio fx-fade-in" aria-labelledby="inicio-title">
@@ -41,12 +40,12 @@ export function renderHomeView(contentEl, { onStartSession } = {}) {
       </div>
 
       <div class="today-goal">
-        <p class="goal-text" id="goal-text">Sin objetivo definido para hoy.</p>
+        <p class="goal-text" id="goal-text">Cargando…</p>
         <div class="tasks-progress">
           <div class="tasks-progress-bar">
             <div class="tasks-progress-fill" id="tasks-progress-fill" style="width: 0%"></div>
           </div>
-          <p class="tasks-counter" id="tasks-counter">-- de -- tareas hechas</p>
+          <p class="tasks-counter" id="tasks-counter">Cargando…</p>
         </div>
       </div>
 
@@ -57,7 +56,36 @@ export function renderHomeView(contentEl, { onStartSession } = {}) {
     </section>
   `;
 
+  const els = {
+    minutesToday: contentEl.querySelector("#minutes-today"),
+    pomodorosToday: contentEl.querySelector("#pomodoros-today"),
+    goalText: contentEl.querySelector("#goal-text"),
+    progressFill: contentEl.querySelector("#tasks-progress-fill"),
+    tasksCounter: contentEl.querySelector("#tasks-counter"),
+  };
+
   contentEl.querySelector("#start-session-btn").addEventListener("click", () => {
     onStartSession?.();
   });
+
+  Promise.all([fetchTodaySessions(), fetchTodayTasks(), fetchTodayGoal()])
+    .then(([sessions, tasks, goal]) => {
+      els.minutesToday.textContent = sumMinutes(sessions);
+      els.pomodorosToday.textContent = countCompletedPomodoros(sessions);
+
+      els.goalText.textContent = goal?.goal_text?.trim() ? goal.goal_text : "Sin objetivo definido para hoy.";
+
+      const doneCount = tasks.filter((t) => t.done).length;
+      const total = tasks.length;
+      const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+      els.progressFill.style.width = `${pct}%`;
+      els.tasksCounter.textContent = total > 0 ? `${doneCount} de ${total} tareas hechas` : "Sin tareas para hoy.";
+    })
+    .catch((err) => {
+      console.error(err);
+      els.minutesToday.textContent = "—";
+      els.pomodorosToday.textContent = "—";
+      els.goalText.textContent = "No se pudieron cargar los datos.";
+      els.tasksCounter.textContent = "";
+    });
 }

@@ -1,5 +1,20 @@
 import { supabase } from "../supabaseClient.js";
 
+export async function fetchTodaySessions() {
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+  const { data, error } = await supabase
+    .from("sessions")
+    .select("*")
+    .gte("started_at", startOfDay.toISOString())
+    .lt("started_at", endOfDay.toISOString());
+
+  if (error) throw error;
+  return data;
+}
+
 export async function saveSession({
   task,
   mode,

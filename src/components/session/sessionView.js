@@ -1,4 +1,6 @@
 import { fetchTodayTasks, createTask, setTaskDone } from "../../lib/tasksApi.js";
+import { fetchTodayGoal, saveTodayGoal } from "../../lib/tasksApi.js";
+import { fetchUserSettings, DEFAULT_USER_SETTINGS } from "../../lib/settingsApi.js";
 import { renderTaskFormFields } from "../tasks/taskFormFields.js";
 import {
   startSession,
@@ -18,21 +20,28 @@ const MODES = [
   { key: "stopwatch", label: "Cronómetro", icon: "⏱️", desc: "Cronómetro simple de estudio libre" },
 ];
 
-const CHECKLIST_ITEMS = [
-  "Agua a mano",
-  "Móvil en silencio (o en otra habitación)",
-  "He ido al baño",
-  "Tengo el material que necesito a mano",
-  "Modo no molestar activado en Discord",
-  "Estado de Discord puesto en \"Estudiando...\"",
-];
-
 const MODE_LABELS = {
   pomodoro: "Pomodoro",
   "52-17": "52-17",
   flowtime: "Flowtime",
   stopwatch: "Cronómetro",
 };
+
+const WORK_TIPS = [
+  "Una tarea a la vez. Vas bien.",
+  "Respira hondo y vuelve al foco.",
+  "Cada minuto cuenta, sigue así.",
+  "Elimina distracciones, tu yo futuro lo agradecerá.",
+  "Si te bloqueas, sigue con el punto más pequeño de la tarea.",
+];
+
+const BREAK_TIPS = [
+  "Estírate un poco y bebe agua.",
+  "Regla 20-20-20: mira algo a 6 metros durante 20 segundos.",
+  "Levántate, camina un poco y respira profundo.",
+  "Aprovecha para ir al baño o rellenar la botella de agua.",
+  "Aparta la vista de las pantallas un momento.",
+];
 
 const BREAK_ENDING_SOON_SECONDS = 30;
 
@@ -43,40 +52,77 @@ function formatTime(totalSeconds) {
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+function isFreeMode(mode) {
+  return mode === "flowtime" || mode === "stopwatch";
+}
+
 export function renderSessionView(container) {
   const state = {
     mode: "pomodoro",
-    workMinutes: 25,
-    breakMinutes: 5,
+    workMinutes: DEFAULT_USER_SETTINGS.default_pomodoro_work_min,
+    breakMinutes: DEFAULT_USER_SETTINGS.default_pomodoro_break_min,
+    modeDefaults: {
+      pomodoro: {
+        work: DEFAULT_USER_SETTINGS.default_pomodoro_work_min,
+        break: DEFAULT_USER_SETTINGS.default_pomodoro_break_min,
+      },
+      "52-17": {
+        work: DEFAULT_USER_SETTINGS.default_5217_work_min,
+        break: DEFAULT_USER_SETTINGS.default_5217_break_min,
+      },
+    },
     tasks: [],
     tasksLoading: true,
     selectedTaskId: null,
     quickAddOpen: false,
     checked: new Set(),
+    goalText: "",
+    checklistItems: [...DEFAULT_USER_SETTINGS.checklist_items],
   };
+
+  const tipCache = new Map(); // phaseStartAt -> texto de consejo elegido para esa fase
+
+  function pickTip(list, phaseStartAt) {
+    if (!tipCache.has(phaseStartAt)) {
+      tipCache.set(phaseStartAt, list[Math.floor(Math.random() * list.length)]);
+    }
+    return tipCache.get(phaseStartAt);
+  }
 
   container.innerHTML = `
     <section class="view-sesion fx-fade-in" aria-labelledby="sesion-title">
       <h1 id="sesion-title">Sesión de estudio</h1>
 
-      <div class="session-active-panel" id="session-active-panel" hidden>
+      <div class="session-active-panel sap-idle" id="session-active-panel">
         <div class="sap-timer-block">
           <p class="sap-mode" id="sap-mode"></p>
           <p class="sap-task" id="sap-task"></p>
           <p class="sap-phase" id="sap-phase"></p>
-          <p class="sap-time" id="sap-time">00:00</p>
+          <p class="sap-time" id="sap-time">25:00</p>
+          <p class="sap-tip" id="sap-tip"></p>
           <div class="sap-controls">
-            <button type="button" class="ft-btn" id="sap-pause">Pausar</button>
-            <button type="button" class="ft-btn" id="sap-skip">Saltar fase ⏭️</button>
-            <button type="button" class="ft-btn ft-btn-end" id="sap-end">Terminar</button>
+            <button type="button" class="ft-btn" id="sap-pause" disabled>Pausar</button>
+            <button type="button" class="ft-btn" id="sap-skip" disabled>Saltar fase ⏭️</button>
+            <button type="button" class="ft-btn ft-btn-end" id="sap-end" disabled>Terminar</button>
           </div>
         </div>
+      </div>
 
-        <div class="sap-tasks-block">
-          <h2>Tareas de hoy</h2>
-          <p class="sap-tasks-hint">Pulsa una tarea para hacerla la activa (el cronómetro sigue corriendo).</p>
-          <div class="task-full-list" id="sap-task-list"></div>
-        </div>
+      <div class="setup-block">
+        <h2>Objetivo general del día</h2>
+        <textarea
+          id="session-goal-input"
+          class="goal-input"
+          rows="2"
+          placeholder="¿Cuál es tu objetivo principal hoy? (obligatorio para empezar)"
+        ></textarea>
+        <p class="goal-save-status" id="session-goal-status"></p>
+
+        <h2 class="sap-tasks-heading">Tareas</h2>
+        <p class="sap-tasks-hint" id="sap-tasks-hint">Pulsa una tarea para seleccionarla.</p>
+        <div class="task-full-list" id="session-task-list"></div>
+        <button type="button" class="task-add-toggle" id="task-add-toggle">+ Nueva tarea rápida</button>
+        <div class="task-quick-add" id="task-quick-add" hidden></div>
       </div>
 
       <div class="session-setup" id="session-setup">
@@ -84,13 +130,6 @@ export function renderSessionView(container) {
           <h2>Modo</h2>
           <div class="mode-grid" id="mode-grid"></div>
           <div class="mode-config" id="mode-config"></div>
-        </div>
-
-        <div class="setup-block">
-          <h2>Tarea</h2>
-          <div class="task-list" id="task-list"></div>
-          <button type="button" class="task-add-toggle" id="task-add-toggle">+ Nueva tarea rápida</button>
-          <div class="task-quick-add" id="task-quick-add" hidden></div>
         </div>
 
         <div class="setup-block">
@@ -102,6 +141,7 @@ export function renderSessionView(container) {
           <span class="btn-hero-icon" aria-hidden="true">▶️</span>
           Empezar sesión
         </button>
+        <p class="start-session-hint" id="start-session-hint"></p>
       </div>
     </section>
   `;
@@ -112,24 +152,70 @@ export function renderSessionView(container) {
     panelTask: container.querySelector("#sap-task"),
     panelPhase: container.querySelector("#sap-phase"),
     panelTime: container.querySelector("#sap-time"),
+    panelTip: container.querySelector("#sap-tip"),
     panelPauseBtn: container.querySelector("#sap-pause"),
     panelSkipBtn: container.querySelector("#sap-skip"),
     panelEndBtn: container.querySelector("#sap-end"),
-    panelTaskList: container.querySelector("#sap-task-list"),
+    goalInput: container.querySelector("#session-goal-input"),
+    goalStatus: container.querySelector("#session-goal-status"),
+    taskList: container.querySelector("#session-task-list"),
+    tasksHint: container.querySelector("#sap-tasks-hint"),
     setup: container.querySelector("#session-setup"),
     modeGrid: container.querySelector("#mode-grid"),
     modeConfig: container.querySelector("#mode-config"),
-    taskList: container.querySelector("#task-list"),
     taskAddToggle: container.querySelector("#task-add-toggle"),
     quickAdd: container.querySelector("#task-quick-add"),
     checklist: container.querySelector("#checklist"),
     startBtn: container.querySelector("#start-session-btn"),
+    startHint: container.querySelector("#start-session-hint"),
   };
 
   function updateStartButtonState() {
-    els.startBtn.disabled = !state.selectedTaskId;
+    const missingTask = !state.selectedTaskId;
+    const missingGoal = !state.goalText.trim();
+    els.startBtn.disabled = missingTask || missingGoal;
+
+    if (missingTask && missingGoal) {
+      els.startHint.textContent = "Falta: elige una tarea y escribe el objetivo del día.";
+    } else if (missingTask) {
+      els.startHint.textContent = "Falta: elige una tarea de la lista de arriba.";
+    } else if (missingGoal) {
+      els.startHint.textContent = "Falta: escribe el objetivo del día, arriba del todo.";
+    } else {
+      els.startHint.textContent = "";
+    }
   }
 
+  // ---- Objetivo del día ----
+  let goalSaveTimeout = null;
+  els.goalInput.addEventListener("input", () => {
+    state.goalText = els.goalInput.value;
+    updateStartButtonState();
+    els.goalStatus.textContent = "Guardando…";
+    clearTimeout(goalSaveTimeout);
+    goalSaveTimeout = setTimeout(async () => {
+      try {
+        await saveTodayGoal(state.goalText);
+        els.goalStatus.textContent = "Guardado";
+        setTimeout(() => {
+          if (els.goalStatus.textContent === "Guardado") els.goalStatus.textContent = "";
+        }, 1500);
+      } catch (err) {
+        els.goalStatus.textContent = "No se pudo guardar";
+        console.error(err);
+      }
+    }, 800);
+  });
+
+  fetchTodayGoal()
+    .then((goal) => {
+      state.goalText = goal?.goal_text || "";
+      els.goalInput.value = state.goalText;
+      updateStartButtonState();
+    })
+    .catch((err) => console.error(err));
+
+  // ---- Modo ----
   function renderModeGrid() {
     els.modeGrid.innerHTML = MODES.map(
       (m) => `
@@ -144,15 +230,13 @@ export function renderSessionView(container) {
     els.modeGrid.querySelectorAll(".mode-card").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.mode = btn.dataset.mode;
-        if (state.mode === "pomodoro") {
-          state.workMinutes = 25;
-          state.breakMinutes = 5;
-        } else if (state.mode === "52-17") {
-          state.workMinutes = 52;
-          state.breakMinutes = 17;
+        if (state.mode === "pomodoro" || state.mode === "52-17") {
+          state.workMinutes = state.modeDefaults[state.mode].work;
+          state.breakMinutes = state.modeDefaults[state.mode].break;
         }
         renderModeGrid();
         renderModeConfig();
+        refreshIdleTimerDisplay();
       });
     });
   }
@@ -184,6 +268,7 @@ export function renderSessionView(container) {
     els.modeConfig.querySelector("#work-minutes-input").addEventListener("input", (e) => {
       const v = parseInt(e.target.value, 10);
       if (Number.isFinite(v) && v > 0) state.workMinutes = v;
+      refreshIdleTimerDisplay();
     });
     els.modeConfig.querySelector("#break-minutes-input").addEventListener("input", (e) => {
       const v = parseInt(e.target.value, 10);
@@ -191,6 +276,7 @@ export function renderSessionView(container) {
     });
   }
 
+  // ---- Tareas (lista única: seleccionar antes de empezar / cambiar activa en marcha) ----
   function renderTaskList() {
     if (state.tasksLoading) {
       els.taskList.innerHTML = `<p class="task-list-empty">Cargando tareas de hoy…</p>`;
@@ -200,10 +286,18 @@ export function renderSessionView(container) {
       els.taskList.innerHTML = `<p class="task-list-empty">Todavía no tienes tareas para hoy. Crea una abajo.</p>`;
       return;
     }
+
+    const sessionState = getSessionState();
+    const active = sessionState.status !== "idle";
+    const highlightedId = active ? sessionState.task?.id : state.selectedTaskId;
+    els.tasksHint.textContent = active
+      ? "Pulsa una tarea para hacerla la activa (el cronómetro sigue corriendo)."
+      : "Pulsa una tarea para seleccionarla.";
+
     els.taskList.innerHTML = state.tasks
       .map(
         (t) => `
-          <div class="task-full-row clickable ${state.selectedTaskId === t.id ? "active" : ""}" data-task-id="${t.id}">
+          <div class="task-full-row clickable ${highlightedId === t.id ? "active" : ""}" data-task-id="${t.id}">
             <input type="checkbox" class="task-done-checkbox" ${t.done ? "checked" : ""} aria-label="Marcar tarea hecha" />
             <div class="task-full-info">
               <span class="task-row-title ${t.done ? "task-row-title-done" : ""}">${escapeHtml(t.title)}</span>
@@ -235,10 +329,15 @@ export function renderSessionView(container) {
         }
       });
 
-      row.addEventListener("click", () => {
-        state.selectedTaskId = taskId;
-        renderTaskList();
-        updateStartButtonState();
+      row.addEventListener("click", async () => {
+        if (getSessionState().status !== "idle") {
+          await switchSessionTask(task);
+          renderTaskList();
+        } else {
+          state.selectedTaskId = taskId;
+          renderTaskList();
+          updateStartButtonState();
+        }
       });
     });
   }
@@ -292,7 +391,7 @@ export function renderSessionView(container) {
           position: state.tasks.length,
         });
         state.tasks = [...state.tasks, newTask];
-        state.selectedTaskId = newTask.id;
+        if (getSessionState().status === "idle") state.selectedTaskId = newTask.id;
         state.quickAddOpen = false;
         renderTaskList();
         renderQuickAdd();
@@ -306,16 +405,18 @@ export function renderSessionView(container) {
   }
 
   function renderChecklist() {
-    els.checklist.innerHTML = CHECKLIST_ITEMS.map(
-      (item, i) => `
+    els.checklist.innerHTML = state.checklistItems
+      .map(
+        (item, i) => `
         <li>
           <label class="checklist-item">
             <input type="checkbox" data-index="${i}" ${state.checked.has(i) ? "checked" : ""} />
-            ${item}
+            ${escapeHtml(item)}
           </label>
         </li>
       `
-    ).join("");
+      )
+      .join("");
 
     els.checklist.querySelectorAll("input[type=checkbox]").forEach((cb) => {
       cb.addEventListener("change", (e) => {
@@ -326,87 +427,8 @@ export function renderSessionView(container) {
     });
   }
 
-  function renderPanel(sessionState) {
-    els.panelMode.textContent = MODE_LABELS[sessionState.mode] || sessionState.mode;
-    els.panelTask.textContent = sessionState.task?.title || "Sin tarea";
-
-    const isFreeMode = sessionState.mode === "flowtime" || sessionState.mode === "stopwatch";
-    const seconds =
-      sessionState.phaseEndAt !== null ? sessionState.phaseRemainingSeconds : sessionState.phaseElapsedSeconds;
-
-    let colorState = "work";
-    if (sessionState.status === "paused") {
-      els.panelPhase.textContent = "Pausado";
-      colorState = "paused";
-    } else if (sessionState.status === "break") {
-      const endingSoon = (seconds ?? 0) <= BREAK_ENDING_SOON_SECONDS;
-      els.panelPhase.textContent = endingSoon ? "Descanso — vuelve la concentración enseguida" : "Descanso";
-      colorState = endingSoon ? "break-ending" : "break";
-    } else {
-      els.panelPhase.textContent = isFreeMode ? "Estudiando" : "Trabajo";
-      colorState = "work";
-    }
-
-    els.panelTime.textContent = formatTime(seconds);
-    els.panelPauseBtn.textContent = sessionState.status === "paused" ? "Reanudar" : "Pausar";
-    els.panelSkipBtn.hidden = isFreeMode;
-    els.panelSkipBtn.disabled = sessionState.status === "paused";
-
-    els.panel.classList.remove("sap-work", "sap-break", "sap-break-ending", "sap-paused");
-    els.panel.classList.add(`sap-${colorState}`);
-  }
-
-  function renderPanelTaskList() {
-    if (state.tasks.length === 0) {
-      els.panelTaskList.innerHTML = `<p class="task-list-empty">No tienes tareas para hoy.</p>`;
-      return;
-    }
-
-    const activeTaskId = getSessionState().task?.id;
-
-    els.panelTaskList.innerHTML = state.tasks
-      .map(
-        (t) => `
-          <div class="task-full-row clickable ${t.id === activeTaskId ? "active" : ""}" data-task-id="${t.id}">
-            <input type="checkbox" class="task-done-checkbox" ${t.done ? "checked" : ""} aria-label="Marcar tarea hecha" />
-            <div class="task-full-info">
-              <span class="task-row-title ${t.done ? "task-row-title-done" : ""}">${escapeHtml(t.title)}</span>
-              <span class="task-row-tags">
-                <span class="tag-pill">${escapeHtml(t.subject_tag)}</span>
-                <span class="tag-pill tag-pill-muted">${escapeHtml(t.task_type_tag)}</span>
-              </span>
-            </div>
-          </div>
-        `
-      )
-      .join("");
-
-    els.panelTaskList.querySelectorAll(".task-full-row").forEach((row) => {
-      const taskId = row.dataset.taskId;
-      const task = state.tasks.find((t) => t.id === taskId);
-      const checkbox = row.querySelector(".task-done-checkbox");
-
-      checkbox.addEventListener("click", (e) => e.stopPropagation());
-      checkbox.addEventListener("change", async (e) => {
-        const done = e.target.checked;
-        try {
-          await setTaskDone(taskId, done);
-          task.done = done;
-          renderPanelTaskList();
-        } catch (err) {
-          e.target.checked = !done;
-          console.error(err);
-        }
-      });
-
-      row.addEventListener("click", async () => {
-        await switchSessionTask(task);
-        renderPanelTaskList();
-      });
-    });
-  }
-
-  function renderActiveState(sessionState) {
+  // ---- Bloque de reloj: siempre visible, en reposo (25:00, controles deshabilitados) o en marcha ----
+  function renderTimerBlock(sessionState) {
     if (!els.panel.isConnected) {
       unsubscribe();
       setFloatingTimerSuppressed(false);
@@ -414,15 +436,63 @@ export function renderSessionView(container) {
     }
 
     const active = sessionState.status !== "idle";
-    const wasActive = !els.panel.hidden;
-    els.panel.hidden = !active;
-    els.setup.hidden = active;
     setFloatingTimerSuppressed(active);
+    els.setup.hidden = active;
 
-    if (active) {
-      renderPanel(sessionState);
-      if (!wasActive) renderPanelTaskList();
+    els.panel.classList.remove("sap-work", "sap-break", "sap-break-ending", "sap-paused", "sap-idle");
+
+    if (!active) {
+      const selectedTask = state.tasks.find((t) => t.id === state.selectedTaskId);
+      els.panelMode.textContent = MODE_LABELS[state.mode] || state.mode;
+      els.panelTask.textContent = selectedTask ? selectedTask.title : "Elige una tarea abajo";
+      els.panelPhase.textContent = "Sin sesión activa";
+      const idleSeconds = isFreeMode(state.mode) ? 0 : state.workMinutes * 60;
+      els.panelTime.textContent = formatTime(idleSeconds);
+      els.panelTip.textContent = "";
+      els.panelPauseBtn.textContent = "Pausar";
+      els.panelPauseBtn.disabled = true;
+      els.panelSkipBtn.hidden = isFreeMode(state.mode);
+      els.panelSkipBtn.disabled = true;
+      els.panelEndBtn.disabled = true;
+      els.panel.classList.add("sap-idle");
+      return;
     }
+
+    els.panelMode.textContent = MODE_LABELS[sessionState.mode] || sessionState.mode;
+    els.panelTask.textContent = sessionState.task?.title || "Sin tarea";
+
+    const freeMode = isFreeMode(sessionState.mode);
+    const seconds =
+      sessionState.phaseEndAt !== null ? sessionState.phaseRemainingSeconds : sessionState.phaseElapsedSeconds;
+
+    let colorState = "work";
+    if (sessionState.status === "paused") {
+      els.panelPhase.textContent = "Pausado";
+      els.panelTip.textContent = "";
+      colorState = "paused";
+    } else if (sessionState.status === "break") {
+      const endingSoon = (seconds ?? 0) <= BREAK_ENDING_SOON_SECONDS;
+      els.panelPhase.textContent = endingSoon ? "Descanso — vuelve la concentración enseguida" : "Descanso";
+      els.panelTip.textContent = pickTip(BREAK_TIPS, sessionState.phaseStartAt);
+      colorState = endingSoon ? "break-ending" : "break";
+    } else {
+      els.panelPhase.textContent = freeMode ? "Estudiando" : "Trabajo";
+      els.panelTip.textContent = pickTip(WORK_TIPS, sessionState.phaseStartAt);
+      colorState = "work";
+    }
+
+    els.panelTime.textContent = formatTime(seconds);
+    els.panelPauseBtn.textContent = sessionState.status === "paused" ? "Reanudar" : "Pausar";
+    els.panelPauseBtn.disabled = false;
+    els.panelSkipBtn.hidden = freeMode;
+    els.panelSkipBtn.disabled = sessionState.status === "paused";
+    els.panelEndBtn.disabled = false;
+
+    els.panel.classList.add(`sap-${colorState}`);
+  }
+
+  function refreshIdleTimerDisplay() {
+    if (getSessionState().status === "idle") renderTimerBlock(getSessionState());
   }
 
   els.panelPauseBtn.addEventListener("click", () => togglePause());
@@ -443,7 +513,7 @@ export function renderSessionView(container) {
       workMinutes: state.workMinutes,
       breakMinutes: state.breakMinutes,
     });
-    renderActiveState(getSessionState());
+    renderTaskList();
   });
 
   renderModeGrid();
@@ -453,18 +523,34 @@ export function renderSessionView(container) {
   renderChecklist();
   updateStartButtonState();
 
-  const unsubscribe = subscribeSession(renderActiveState);
+  const unsubscribe = subscribeSession(renderTimerBlock);
 
   fetchTodayTasks()
     .then((tasks) => {
       state.tasks = tasks;
       state.tasksLoading = false;
       renderTaskList();
-      if (getSessionState().status !== "idle") renderPanelTaskList();
     })
     .catch((err) => {
       console.error(err);
       state.tasksLoading = false;
       els.taskList.innerHTML = `<p class="task-list-empty">No se pudieron cargar las tareas.</p>`;
     });
+
+  fetchUserSettings()
+    .then((settings) => {
+      state.modeDefaults = {
+        pomodoro: { work: settings.default_pomodoro_work_min, break: settings.default_pomodoro_break_min },
+        "52-17": { work: settings.default_5217_work_min, break: settings.default_5217_break_min },
+      };
+      state.checklistItems = [...settings.checklist_items];
+      if (state.mode === "pomodoro" || state.mode === "52-17") {
+        state.workMinutes = state.modeDefaults[state.mode].work;
+        state.breakMinutes = state.modeDefaults[state.mode].break;
+      }
+      renderModeConfig();
+      renderChecklist();
+      refreshIdleTimerDisplay();
+    })
+    .catch((err) => console.error(err));
 }

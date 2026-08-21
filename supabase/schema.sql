@@ -75,7 +75,9 @@ create table if not exists exam_simulations (
   started_at timestamptz,
   ended_at timestamptz,
   corrected_at timestamptz,
-  final_grade numeric
+  final_grade numeric,
+  grade_out_of numeric not null default 20, -- escala de la nota: 20, 40, 5... no siempre /20
+  created_at timestamptz not null default now()
 );
 
 -- Errores registrados al corregir un simulacro (uno por pregunta/bloque fallado)
@@ -99,6 +101,24 @@ create table if not exists trimesters (
   unique (user_id, academic_year, trimester_number)
 );
 
+-- Ajustes: modos de estudio por defecto y checklist personalizable de la sesión
+create table if not exists user_settings (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade unique,
+  default_pomodoro_work_min int not null default 25,
+  default_pomodoro_break_min int not null default 5,
+  default_5217_work_min int not null default 52,
+  default_5217_break_min int not null default 17,
+  checklist_items jsonb not null default '[
+    "Agua a mano",
+    "Móvil en silencio (o en otra habitación)",
+    "He ido al baño",
+    "Tengo el material que necesito a mano",
+    "Modo no molestar activado en Discord",
+    "Estado de Discord puesto en \"Estudiando...\""
+  ]'::jsonb
+);
+
 -- === Row Level Security ===
 -- Activa RLS y añade una única política por tabla: el usuario solo puede
 -- leer/escribir filas donde user_id coincide con su propio auth.uid().
@@ -111,6 +131,7 @@ alter table contract enable row level security;
 alter table exam_simulations enable row level security;
 alter table exam_errors enable row level security;
 alter table trimesters enable row level security;
+alter table user_settings enable row level security;
 
 create policy "owner_all_sessions" on sessions
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -132,3 +153,24 @@ create policy "owner_all_exam_errors" on exam_errors
 
 create policy "owner_all_trimesters" on trimesters
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "owner_all_user_settings" on user_settings
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Bucket privado de Storage para los PDFs de los simulacros (enunciado + corrección).
+-- Cada archivo se sube con ruta "{user_id}/{exam_id}/archivo.pdf".
+insert into storage.buckets (id, name, public)
+values ('exam-pdfs', 'exam-pdfs', false)
+on conflict (id) do nothing;
+
+create policy "owner_select_exam_pdfs" on storage.objects
+  for select using (bucket_id = 'exam-pdfs' and auth.uid()::text = (storage.foldername(name))[1]);
+
+create policy "owner_insert_exam_pdfs" on storage.objects
+  for insert with check (bucket_id = 'exam-pdfs' and auth.uid()::text = (storage.foldername(name))[1]);
+
+create policy "owner_update_exam_pdfs" on storage.objects
+  for update using (bucket_id = 'exam-pdfs' and auth.uid()::text = (storage.foldername(name))[1]);
+
+create policy "owner_delete_exam_pdfs" on storage.objects
+  for delete using (bucket_id = 'exam-pdfs' and auth.uid()::text = (storage.foldername(name))[1]);

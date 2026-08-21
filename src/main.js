@@ -9,6 +9,11 @@ import { renderAppShell } from "./components/layout/appShell.js";
 import { renderHomeView } from "./components/home/homeView.js";
 import { renderSessionView } from "./components/session/sessionView.js";
 import { renderTasksView } from "./components/tasks/tasksView.js";
+import { renderDescansoView } from "./components/descanso/descansoView.js";
+import { renderSettingsView } from "./components/settings/settingsView.js";
+import { renderEstadisticasView } from "./components/estadisticas/estadisticasView.js";
+import { renderContratoView } from "./components/contrato/contratoView.js";
+import { renderAmbienteView } from "./components/ambiente/ambienteView.js";
 
 initTheme();
 startTimeTintWatcher();
@@ -21,6 +26,18 @@ const VIEWS = {
   inicio: (contentEl, navigate) => renderHomeView(contentEl, { onStartSession: () => navigate("sesion") }),
   sesion: (contentEl) => renderSessionView(contentEl),
   tareas: (contentEl) => renderTasksView(contentEl),
+  descanso: (contentEl) => renderDescansoView(contentEl),
+  ajustes: (contentEl) => renderSettingsView(contentEl),
+  estadisticas: (contentEl) => renderEstadisticasView(contentEl),
+  contrato: (contentEl) => renderContratoView(contentEl),
+  ambiente: (contentEl) => renderAmbienteView(contentEl),
+  // pdfjs-dist pesa ~700KB: se carga solo al entrar en esta sección, no en el bundle inicial.
+  simulacro: (contentEl) => {
+    contentEl.innerHTML = `<p class="stats-loading">Cargando…</p>`;
+    import("./components/simulacro/simulacroView.js").then(({ renderSimulacroView }) =>
+      renderSimulacroView(contentEl)
+    );
+  },
 };
 
 function showLogin() {
