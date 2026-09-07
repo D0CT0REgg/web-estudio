@@ -71,7 +71,7 @@ export async function renderExamCorrectionScreen(container, nav, examId) {
           <div class="setup-block">
             <h2>Nota final</h2>
             <div class="exam-grade-row">
-              <input type="number" min="0" step="0.01" id="final-grade-input" class="exam-grade-input" placeholder="Nota" />
+              <input type="number" min="0" max="20" step="0.01" id="final-grade-input" class="exam-grade-input" placeholder="Nota" />
               <span class="exam-grade-slash">/</span>
               <input type="number" min="1" step="0.01" id="grade-out-of-input" class="exam-grade-input" value="20" />
             </div>
@@ -127,14 +127,42 @@ export async function renderExamCorrectionScreen(container, nav, examId) {
     const gradeOutOfInputEl = container.querySelector("#grade-out-of-input");
     const gradeCommentEl = container.querySelector("#grade-comment");
 
+    function updateGradeMax() {
+      const gradeOutOf = gradeOutOfInputEl.value === "" ? null : Number(gradeOutOfInputEl.value);
+      if (gradeOutOf !== null && !Number.isNaN(gradeOutOf) && gradeOutOf > 0) {
+        gradeInputEl.max = String(gradeOutOf);
+        // si ya había una nota escrita mayor que el nuevo baremo (p.ej. cambian de /20 a /10), la recortamos
+        if (gradeInputEl.value !== "" && Number(gradeInputEl.value) > gradeOutOf) {
+          gradeInputEl.value = String(gradeOutOf);
+        }
+      } else {
+        gradeInputEl.removeAttribute("max");
+      }
+    }
+
+    function clampGradeToMax() {
+      const gradeOutOf = gradeOutOfInputEl.value === "" ? null : Number(gradeOutOfInputEl.value);
+      const finalGrade = gradeInputEl.value === "" ? null : Number(gradeInputEl.value);
+      if (gradeOutOf !== null && finalGrade !== null && !Number.isNaN(finalGrade) && finalGrade > gradeOutOf) {
+        gradeInputEl.value = String(gradeOutOf);
+      }
+    }
+
     function updateGradeComment() {
       const finalGrade = gradeInputEl.value === "" ? null : Number(gradeInputEl.value);
       const gradeOutOf = gradeOutOfInputEl.value === "" ? null : Number(gradeOutOfInputEl.value);
       gradeCommentEl.textContent = getGradeComment(finalGrade, gradeOutOf);
     }
 
-    gradeInputEl.addEventListener("input", updateGradeComment);
-    gradeOutOfInputEl.addEventListener("input", updateGradeComment);
+    gradeInputEl.addEventListener("input", () => {
+      clampGradeToMax();
+      updateGradeComment();
+    });
+    gradeOutOfInputEl.addEventListener("input", () => {
+      updateGradeMax();
+      updateGradeComment();
+    });
+    updateGradeMax();
     updateGradeComment();
 
     renderErrorsEditor();
@@ -158,6 +186,11 @@ export async function renderExamCorrectionScreen(container, nav, examId) {
       }
       if (gradeOutOf === null || Number.isNaN(gradeOutOf) || gradeOutOf <= 0) {
         errorEl.textContent = "Introduce sobre cuánto se puntúa (ej. 20, 40, 5).";
+        errorEl.hidden = false;
+        return;
+      }
+      if (finalGrade > gradeOutOf) {
+        errorEl.textContent = `La nota no puede ser mayor que ${gradeOutOf}.`;
         errorEl.hidden = false;
         return;
       }
