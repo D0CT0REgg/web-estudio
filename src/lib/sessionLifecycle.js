@@ -1,7 +1,15 @@
-import { endSession, switchTask } from "./sessionStore.js";
+import {
+  endSession,
+  switchTask,
+  subscribe as subscribeSession,
+  getState as getSessionState,
+  resumeTicking,
+} from "./sessionStore.js";
 import { saveSession } from "./sessionsApi.js";
+import { toLocalDateKey } from "./statsCalc.js";
 
 const MIN_SEGMENT_MS = 30 * 1000; // tramos de menos de 30s no merece la pena guardarlos aparte
+const AUTOSAVE_INTERVAL_MS = 60 * 1000;
 
 function isFreeMode(mode) {
   return mode === "flowtime" || mode === "stopwatch";
@@ -18,6 +26,7 @@ function computeActualDurationMin(segment) {
 async function saveSegment(segment, { completed }) {
   try {
     await saveSession({
+      id: segment.id,
       task: segment.task,
       mode: segment.mode,
       plannedDurationMin: segment.workMinutes || null,
@@ -49,4 +58,70 @@ export async function switchSessionTask(newTask) {
   if (previousSegment.workAccumulatedMs < MIN_SEGMENT_MS) return;
 
   await saveSegment(previousSegment, { completed: true });
+}
+
+function snapshotActiveSegment(state) {
+  return {
+    id: state.segmentId,
+    task: state.task,
+    mode: state.mode,
+    workMinutes: state.workMinutes,
+    workAccumulatedMs: state.workAccumulatedMs,
+    segmentStartAt: state.segmentStartAt,
+    cyclesCompleted: state.cyclesCompleted,
+  };
+}
+
+async function autosaveTick() {
+  const state = getSessionState();
+  if (state.status === "idle") return;
+  if (state.workAccumulatedMs < MIN_SEGMENT_MS) return;
+  // completed queda en false: el guardado final (finishSession/switchSessionTask) es quien
+  // decide si el tramo se completó, esta llamada solo va subiendo el progreso mientras tanto.
+  await saveSegment(snapshotActiveSegment(state), { completed: false });
+}
+
+/**
+ * Se llama una vez al arrancar la app. Si sessionStore restauró una sesión desde localStorage
+ * (la pestaña se cerró o recargó con una sesión en marcha), decide qué hacer con ella:
+ * - Si el último tick fue hoy: reengancha el cronómetro y sigue contando donde se quedó.
+ * - Si fue un día anterior (pestaña olvidada abierta, o cerrada del todo sin pulsar "Terminar"):
+ *   la cierra ya mismo y la guarda tal y como quedó, en vez de dejarla "en curso" para siempre
+ *   (esto es lo que evita sesiones huérfanas: al tener aquí el cyclesCompleted real gracias al
+ *   estado restaurado, se puede calcular correctamente si se completó o no).
+ */
+export async function reconcileRestoredSession() {
+  const state = getSessionState();
+  if (state.status === "idle") return;
+
+  const lastActivityAt = state.lastTickAt || state.segmentStartAt || state.sessionStartAt;
+  const isFromToday = toLocalDateKey(lastActivityAt) === toLocalDateKey(Date.now());
+
+  if (isFromToday) {
+    resumeTicking();
+    return;
+  }
+
+  const finished = endSession();
+  if (!finished.task) return;
+  await saveSegment(finished, { completed: computeCompleted(finished) });
+}
+
+let autosaveIntervalId = null;
+
+/**
+ * Arranca el autoguardado periódico de la sesión activa: cada minuto sube a Supabase el
+ * progreso del tramo en curso, para no perder el tiempo estudiado si se cierra la pestaña
+ * antes de terminar la sesión. Debe llamarse una vez al arrancar la app.
+ */
+export function initSessionAutosave() {
+  subscribeSession((state) => {
+    const shouldRun = state.status !== "idle";
+    if (shouldRun && autosaveIntervalId === null) {
+      autosaveIntervalId = setInterval(autosaveTick, AUTOSAVE_INTERVAL_MS);
+    } else if (!shouldRun && autosaveIntervalId !== null) {
+      clearInterval(autosaveIntervalId);
+      autosaveIntervalId = null;
+    }
+  });
 }

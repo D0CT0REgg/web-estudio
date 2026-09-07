@@ -4,6 +4,7 @@ import { initTheme } from "./lib/theme.js";
 import { startTimeTintWatcher } from "./lib/timeTint.js";
 import { initParticles } from "./lib/particles.js";
 import { initFloatingTimer } from "./components/timer/floatingTimer.js";
+import { initSessionAutosave, reconcileRestoredSession } from "./lib/sessionLifecycle.js";
 import { renderLogin } from "./components/auth/authView.js";
 import { renderAppShell } from "./components/layout/appShell.js";
 import { renderHomeView } from "./components/home/homeView.js";
@@ -21,6 +22,8 @@ initTheme();
 startTimeTintWatcher();
 initParticles();
 initFloatingTimer();
+initSessionAutosave();
+reconcileRestoredSession();
 
 const app = document.querySelector("#app");
 

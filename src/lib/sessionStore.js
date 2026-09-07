@@ -1,6 +1,10 @@
 // Motor del temporizador de estudio: mantiene el estado de la sesión activa
 // (si la hay) y notifica a quien esté suscrito (vista de Sesión, timer flotante).
-// No sabe nada de DOM ni de Supabase — eso lo hacen los componentes que lo usan.
+// No sabe nada de Supabase — eso lo hace sessionLifecycle.js. Sí persiste en localStorage
+// (almacenamiento puramente del navegador) para poder recuperar la sesión si se cierra
+// la pestaña sin querer; ver restoreState()/resumeTicking() y sessionLifecycle.js.
+
+const STORAGE_KEY = "web-estudio-active-session";
 
 const MODE_DEFAULTS = {
   pomodoro: { work: 25, break: 5 },
@@ -8,10 +12,36 @@ const MODE_DEFAULTS = {
 };
 
 const listeners = new Set();
-let state = { status: "idle" };
+let state = restoreState();
 let intervalId = null;
 
+function restoreState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { status: "idle" };
+    const parsed = JSON.parse(raw);
+    if (!parsed || parsed.status === "idle") return { status: "idle" };
+    return parsed;
+  } catch {
+    return { status: "idle" };
+  }
+}
+
+function persist() {
+  try {
+    if (state.status === "idle") {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+  } catch {
+    // localStorage no disponible (modo privado, cuota llena…): la sesión sigue funcionando
+    // en memoria, solo se pierde la capacidad de recuperarla tras cerrar la pestaña.
+  }
+}
+
 function notify() {
+  persist();
   listeners.forEach((fn) => fn(state));
   state.autoPhaseChange = false;
 }
@@ -90,6 +120,7 @@ export function startSession({ mode, task, workMinutes, breakMinutes }) {
     workMinutes: work,
     breakMinutes: brk,
     sessionStartAt: now,
+    segmentId: crypto.randomUUID(), // se renueva en cada cambio de tarea (switchTask); identifica la fila en Supabase para el autoguardado
     segmentStartAt: now, // se actualiza en cada cambio de tarea (switchTask)
     phaseStartAt: now,
     phaseEndAt: work ? now + work * 60000 : null,
@@ -131,6 +162,7 @@ export function switchTask(newTask) {
   state.lastTickAt = now;
 
   const previousSegment = {
+    id: state.segmentId,
     task: state.task,
     mode: state.mode,
     workMinutes: state.workMinutes,
@@ -140,6 +172,7 @@ export function switchTask(newTask) {
   };
 
   state.task = newTask;
+  state.segmentId = crypto.randomUUID();
   state.segmentStartAt = now;
   state.workAccumulatedMs = 0;
   state.cyclesCompleted = 0;
@@ -169,11 +202,25 @@ export function togglePause() {
   }
 }
 
+/**
+ * Reengancha el intervalo de ticks tras restaurar una sesión desde localStorage (p.ej. al
+ * recargar la pestaña o reabrirla). No toca el resto del estado: los timestamps guardados son
+ * absolutos, así que el próximo tick() ya calcula bien cuánto ha pasado desde el último.
+ * Quien decide si una sesión restaurada merece reengancharse o darse por finalizada es
+ * sessionLifecycle.js (aquí no sabemos qué es "demasiado vieja").
+ */
+export function resumeTicking() {
+  if (state.status === "idle" || intervalId !== null) return;
+  intervalId = setInterval(tick, 1000);
+}
+
 /** Termina la sesión activa y devuelve una foto de su estado final (para guardarla). */
 export function endSession() {
   clearInterval(intervalId);
   intervalId = null;
-  const finished = state;
+  // id: el mismo segmentId con el que el autoguardado ya venía subiendo este tramo, para que
+  // este guardado final actualice esa fila (upsert) en vez de crear una duplicada.
+  const finished = { ...state, id: state.segmentId };
   state = { status: "idle" };
   notify();
   return finished;

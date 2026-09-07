@@ -16,6 +16,7 @@ export async function fetchTodaySessions() {
 }
 
 export async function saveSession({
+  id,
   task,
   mode,
   plannedDurationMin,
@@ -28,7 +29,10 @@ export async function saveSession({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from("sessions").insert({
+  // upsert (no insert): el autoguardado periódico y el guardado final comparten el mismo
+  // `id` de tramo, así que las llamadas repetidas actualizan la misma fila en vez de duplicarla.
+  const { error } = await supabase.from("sessions").upsert({
+    id,
     user_id: user.id,
     task_id: task.id,
     mode,
