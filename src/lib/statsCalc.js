@@ -7,19 +7,6 @@ export function toLocalDateKey(dateInput) {
   return local.toISOString().slice(0, 10);
 }
 
-function mondayOf(dateInput) {
-  const d = new Date(dateInput);
-  d.setHours(0, 0, 0, 0);
-  const mondayIndex = (d.getDay() + 6) % 7; // lunes=0 ... domingo=6
-  d.setDate(d.getDate() - mondayIndex);
-  return d;
-}
-
-// Ancla fija y arbitraria (muy anterior a cualquier dato real) para numerar las semanas del
-// heatmap de forma absoluta — ver buildHeatmapDays.
-const HEATMAP_EPOCH_MONDAY = mondayOf(new Date(2020, 0, 1));
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
 function startOfDay(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -68,13 +55,8 @@ export function computeCurrentStreak(allSessions) {
 }
 
 /** Minutos estudiados por día en los últimos `daysBack` días (por defecto ~1 año), para el heatmap.
- * Incluye `column`, el índice de semana (lunes-domingo) respecto a un ancla fija en el pasado
- * (HEATMAP_EPOCH_MONDAY) — NO relativo a "hoy" ni al primer día de la ventana mostrada. Por eso la
- * columna de una fecha concreta es siempre la misma, se calcule cuando se calcule: un día ya
- * pintado nunca cambia de sitio de una carga a otra. La rejilla solo se alarga por la derecha con
- * las semanas nuevas (y, al pasar de un año, deja de listar las semanas que ya no caben en
- * `daysBack`), pero eso no reordena ni desplaza las columnas que siguen visibles.
- */
+ * Incluye `column`, el índice de semana (lunes-domingo) relativo al primer día, para poder
+ * alinear cada celda con `grid-column`/`grid-row` explícitos y así ubicar etiquetas de mes. */
 export function buildHeatmapDays(allSessions, daysBack = 371) {
   const minutesByDate = new Map();
   allSessions.forEach((s) => {
@@ -82,19 +64,21 @@ export function buildHeatmapDays(allSessions, daysBack = 371) {
     minutesByDate.set(key, (minutesByDate.get(key) || 0) + (s.actual_duration_min || 0));
   });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const windowStart = new Date(today);
-  windowStart.setDate(windowStart.getDate() - (daysBack - 1));
-
   const days = [];
-  for (const cursor = new Date(windowStart); cursor <= today; cursor.setDate(cursor.getDate() + 1)) {
-    const key = toLocalDateKey(cursor);
-    const weekIndex = Math.round((mondayOf(cursor) - HEATMAP_EPOCH_MONDAY) / WEEK_MS);
+  const today = new Date();
+  const first = new Date(today);
+  first.setDate(first.getDate() - (daysBack - 1));
+  const firstWeekday = (first.getDay() + 6) % 7;
+
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = toLocalDateKey(d);
+    const offset = daysBack - 1 - i;
     days.push({
       date: key,
-      weekday: (cursor.getDay() + 6) % 7,
-      column: weekIndex,
+      weekday: (d.getDay() + 6) % 7,
+      column: Math.floor((offset + firstWeekday) / 7),
       minutes: minutesByDate.get(key) || 0,
     });
   }
