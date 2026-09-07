@@ -9,6 +9,7 @@ import {
   fetchTodayGoal,
   saveTodayGoal,
 } from "../../lib/tasksApi.js";
+import { fetchUserSettings, DEFAULT_USER_SETTINGS } from "../../lib/settingsApi.js";
 import { renderTaskFormFields } from "./taskFormFields.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
 import { skeletonList } from "../../lib/skeleton.js";
@@ -19,6 +20,7 @@ export function renderTasksView(container) {
     tasksLoading: true,
     editingTaskId: null,
     quickAddOpen: false,
+    customTaskTypes: [...DEFAULT_USER_SETTINGS.custom_task_types],
   };
 
   container.innerHTML = `
@@ -117,7 +119,9 @@ export function renderTasksView(container) {
       </div>
     `;
 
-    const fields = renderTaskFormFields(els.quickAdd.querySelector("#new-task-fields"));
+    const fields = renderTaskFormFields(els.quickAdd.querySelector("#new-task-fields"), undefined, {
+      customTaskTypes: state.customTaskTypes,
+    });
 
     els.quickAdd.querySelector("#new-task-cancel").addEventListener("click", () => {
       state.quickAddOpen = false;
@@ -131,7 +135,7 @@ export function renderTasksView(container) {
       const errorEl = els.quickAdd.querySelector("#new-task-error");
       errorEl.hidden = true;
 
-      if (!title || !subjectTag || !taskTypeTag || !priorityTag) {
+      if (!title || !subjectTag || !taskTypeTag?.length || !priorityTag) {
         errorEl.textContent = "Escribe un título y elige asignatura, tipo y prioridad.";
         errorEl.hidden = false;
         return;
@@ -169,6 +173,12 @@ export function renderTasksView(container) {
     return priority ? `<span class="tag-pill tag-pill-priority">${escapeHtml(priority)}</span>` : "";
   }
 
+  function typeTagBadges(t) {
+    return (t.task_type_tag || [])
+      .map((type) => `<span class="tag-pill tag-pill-muted">${escapeHtml(type)}</span>`)
+      .join("");
+  }
+
   function viewRowHtml(t) {
     return `
       <div class="task-full-row" data-task-id="${t.id}">
@@ -178,7 +188,7 @@ export function renderTasksView(container) {
           <span class="task-row-title ${t.done ? "task-row-title-done" : ""}">${escapeHtml(t.title)}</span>
           <span class="task-row-tags">
             <span class="tag-pill">${escapeHtml(t.subject_tag)}</span>
-            <span class="tag-pill tag-pill-muted">${escapeHtml(t.task_type_tag)}</span>
+            ${typeTagBadges(t)}
             ${priorityBadge(t)}
           </span>
           ${t.notes ? `<span class="task-row-notes">${escapeHtml(t.notes)}</span>` : ""}
@@ -277,11 +287,15 @@ export function renderTasksView(container) {
   }
 
   function wireEditRow(row, t) {
-    const fields = renderTaskFormFields(row.querySelector(".task-edit-fields"), {
-      subjectTag: t.subject_tag,
-      taskTypeTag: t.task_type_tag,
-      priorityTag: t.extra_tags?.priority ?? null,
-    });
+    const fields = renderTaskFormFields(
+      row.querySelector(".task-edit-fields"),
+      {
+        subjectTag: t.subject_tag,
+        taskTypeTag: t.task_type_tag,
+        priorityTag: t.extra_tags?.priority ?? null,
+      },
+      { customTaskTypes: state.customTaskTypes }
+    );
 
     row.querySelector('[data-action="cancel-edit"]').addEventListener("click", () => {
       state.editingTaskId = null;
@@ -295,7 +309,7 @@ export function renderTasksView(container) {
       const errorEl = row.querySelector(".task-edit-error");
       errorEl.hidden = true;
 
-      if (!title || !subjectTag || !taskTypeTag || !priorityTag) {
+      if (!title || !subjectTag || !taskTypeTag?.length || !priorityTag) {
         errorEl.textContent = "Escribe un título y elige asignatura, tipo y prioridad.";
         errorEl.hidden = false;
         return;
@@ -353,4 +367,10 @@ export function renderTasksView(container) {
       state.tasksLoading = false;
       els.fullList.innerHTML = `<p class="task-list-empty">No se pudieron cargar las tareas.</p>`;
     });
+
+  fetchUserSettings()
+    .then((settings) => {
+      state.customTaskTypes = [...settings.custom_task_types];
+    })
+    .catch((err) => console.error(err));
 }

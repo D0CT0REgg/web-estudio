@@ -15,6 +15,7 @@ export const DEFAULT_USER_SETTINGS = {
   default_5217_work_min: 52,
   default_5217_break_min: 17,
   checklist_items: DEFAULT_CHECKLIST_ITEMS,
+  custom_task_types: [],
 };
 
 export async function fetchUserSettings() {
@@ -39,6 +40,7 @@ export async function saveUserSettings(partial) {
       default_5217_work_min: merged.default_5217_work_min,
       default_5217_break_min: merged.default_5217_break_min,
       checklist_items: merged.checklist_items,
+      custom_task_types: merged.custom_task_types,
     },
     { onConflict: "user_id" }
   );

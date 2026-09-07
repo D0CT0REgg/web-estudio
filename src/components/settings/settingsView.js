@@ -1,5 +1,6 @@
 import { fetchTrimesters, saveTrimester } from "../../lib/trimestersApi.js";
 import { fetchUserSettings, saveUserSettings, resetAllStudyData } from "../../lib/settingsApi.js";
+import { TASK_TYPES } from "../../lib/tags.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
 
 const TRIMESTER_LABELS = { 1: "1er trimestre", 2: "2º trimestre", 3: "3er trimestre" };
@@ -19,6 +20,7 @@ export function renderSettingsView(container) {
     academicYear: currentAcademicYearGuess(),
     trimesters: { 1: { start: "", end: "" }, 2: { start: "", end: "" }, 3: { start: "", end: "" } },
     checklistItems: [],
+    customTaskTypes: [],
   };
 
   container.innerHTML = `
@@ -68,6 +70,21 @@ export function renderSettingsView(container) {
           <button type="button" class="ft-btn" id="add-checklist-item-btn">+ Añadir</button>
         </div>
         <p class="goal-save-status" id="checklist-status"></p>
+      </div>
+
+      <div class="setup-block">
+        <h2>Tipos de tarea personalizados</h2>
+        <p class="stats-subtitle" style="margin-top:0">
+          Se suman a los tipos fijos (Teoría, Ejercicios, Repaso…) al elegir el tipo de una tarea. Renombrar o
+          borrar uno aquí no cambia las tareas que ya lo usan, solo afecta a las que elijas a partir de ahora.
+        </p>
+        <ul class="settings-checklist-list" id="custom-types-editor"></ul>
+        <div class="checklist-add-row">
+          <input type="text" id="new-custom-type" placeholder="Nuevo tipo…" />
+          <button type="button" class="ft-btn" id="add-custom-type-btn">+ Añadir</button>
+        </div>
+        <p class="quick-add-error" id="custom-types-error" hidden></p>
+        <p class="goal-save-status" id="custom-types-status"></p>
       </div>
 
       <div class="setup-block setup-block-danger">
@@ -134,6 +151,11 @@ export function renderSettingsView(container) {
     newChecklistItem: container.querySelector("#new-checklist-item"),
     addChecklistBtn: container.querySelector("#add-checklist-item-btn"),
     checklistStatus: container.querySelector("#checklist-status"),
+    customTypesEditor: container.querySelector("#custom-types-editor"),
+    newCustomType: container.querySelector("#new-custom-type"),
+    addCustomTypeBtn: container.querySelector("#add-custom-type-btn"),
+    customTypesError: container.querySelector("#custom-types-error"),
+    customTypesStatus: container.querySelector("#custom-types-status"),
     openResetBtn: container.querySelector("#open-reset-modal-btn"),
     resetModal: container.querySelector("#reset-modal"),
     resetBackdrop: container.querySelector("#reset-modal-backdrop"),
@@ -292,6 +314,99 @@ export function renderSettingsView(container) {
     }
   });
 
+  // ---- Tipos de tarea personalizados ----
+  function isDuplicateTaskType(value, ignoreIndex = -1) {
+    const lower = value.toLowerCase();
+    if (TASK_TYPES.some((t) => t.toLowerCase() === lower)) return true;
+    return state.customTaskTypes.some((t, i) => i !== ignoreIndex && t.toLowerCase() === lower);
+  }
+
+  function renderCustomTypesEditor() {
+    if (state.customTaskTypes.length === 0) {
+      els.customTypesEditor.innerHTML = `<li class="task-list-empty">No hay tipos personalizados. Añade uno abajo.</li>`;
+      return;
+    }
+    els.customTypesEditor.innerHTML = state.customTaskTypes
+      .map(
+        (item, i) => `
+          <li class="settings-checklist-row" data-index="${i}">
+            <input type="text" class="settings-tag-edit-input" value="${escapeHtml(item)}" />
+            <button type="button" class="ft-icon-btn" data-action="remove-custom-type" aria-label="Eliminar tipo">🗑️</button>
+          </li>
+        `
+      )
+      .join("");
+
+    els.customTypesEditor.querySelectorAll(".settings-tag-edit-input").forEach((input) => {
+      input.addEventListener("change", () => {
+        const i = Number(input.closest("[data-index]").dataset.index);
+        const value = input.value.trim();
+        els.customTypesError.hidden = true;
+
+        if (!value || isDuplicateTaskType(value, i)) {
+          if (!value) {
+            els.customTypesError.textContent = "El tipo no puede quedar vacío.";
+          } else {
+            els.customTypesError.textContent = "Ya existe un tipo con ese nombre.";
+          }
+          els.customTypesError.hidden = false;
+          input.value = state.customTaskTypes[i];
+          return;
+        }
+
+        state.customTaskTypes[i] = value;
+        input.value = value;
+        saveCustomTypes();
+      });
+    });
+
+    els.customTypesEditor.querySelectorAll('[data-action="remove-custom-type"]').forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.closest("[data-index]").dataset.index);
+        state.customTaskTypes.splice(i, 1);
+        renderCustomTypesEditor();
+        saveCustomTypes();
+      });
+    });
+  }
+
+  async function saveCustomTypes() {
+    els.customTypesStatus.textContent = "Guardando…";
+    try {
+      await saveUserSettings({ custom_task_types: state.customTaskTypes });
+      els.customTypesStatus.textContent = "Guardado";
+      setTimeout(() => {
+        if (els.customTypesStatus.textContent === "Guardado") els.customTypesStatus.textContent = "";
+      }, 1500);
+    } catch (err) {
+      els.customTypesStatus.textContent = "No se pudo guardar";
+      console.error(err);
+    }
+  }
+
+  function addCustomType() {
+    const value = els.newCustomType.value.trim();
+    els.customTypesError.hidden = true;
+    if (!value) return;
+    if (isDuplicateTaskType(value)) {
+      els.customTypesError.textContent = "Ya existe un tipo con ese nombre.";
+      els.customTypesError.hidden = false;
+      return;
+    }
+    state.customTaskTypes.push(value);
+    els.newCustomType.value = "";
+    renderCustomTypesEditor();
+    saveCustomTypes();
+  }
+
+  els.addCustomTypeBtn.addEventListener("click", addCustomType);
+  els.newCustomType.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addCustomType();
+    }
+  });
+
   // ---- Zona de peligro ----
   function openResetModal() {
     els.resetPasswordInput.value = "";
@@ -348,6 +463,7 @@ export function renderSettingsView(container) {
   // ---- Carga inicial ----
   renderTrimesterRows();
   renderChecklistEditor();
+  renderCustomTypesEditor();
   els.academicYearInput.value = state.academicYear;
 
   fetchTrimesters()
@@ -373,6 +489,8 @@ export function renderSettingsView(container) {
       els.c5217Break.value = settings.default_5217_break_min;
       state.checklistItems = [...settings.checklist_items];
       renderChecklistEditor();
+      state.customTaskTypes = [...settings.custom_task_types];
+      renderCustomTypesEditor();
     })
     .catch((err) => console.error(err));
 }

@@ -1027,6 +1027,15 @@ body::before {
   color: #ffffff;
 }
 
+.chip.chip-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chip.chip-disabled:hover {
+  border-color: var(--border);
+}
+
 .quick-add-error {
   margin: 0;
   font-size: 0.82rem;
@@ -1701,6 +1710,25 @@ body::before {
   background: var(--bg);
   color: var(--text);
   font-family: inherit;
+}
+
+.settings-tag-edit-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: inherit;
+}
+
+.settings-tag-edit-input:hover,
+.settings-tag-edit-input:focus {
+  border-color: var(--border);
+  background: var(--surface);
 }
 
 .setup-block-danger {

@@ -80,6 +80,7 @@ export function renderSessionView(container) {
     checked: new Set(),
     goalText: "",
     checklistItems: [...DEFAULT_USER_SETTINGS.checklist_items],
+    customTaskTypes: [...DEFAULT_USER_SETTINGS.custom_task_types],
   };
 
   const tipCache = new Map(); // phaseStartAt -> texto de consejo elegido para esa fase
@@ -305,7 +306,9 @@ export function renderSessionView(container) {
               <span class="task-row-title ${t.done ? "task-row-title-done" : ""}">${escapeHtml(t.title)}</span>
               <span class="task-row-tags">
                 <span class="tag-pill">${escapeHtml(t.subject_tag)}</span>
-                <span class="tag-pill tag-pill-muted">${escapeHtml(t.task_type_tag)}</span>
+                ${(t.task_type_tag || [])
+                  .map((type) => `<span class="tag-pill tag-pill-muted">${escapeHtml(type)}</span>`)
+                  .join("")}
               </span>
             </div>
           </div>
@@ -363,7 +366,9 @@ export function renderSessionView(container) {
       </div>
     `;
 
-    const fields = renderTaskFormFields(els.quickAdd.querySelector("#quick-task-fields"));
+    const fields = renderTaskFormFields(els.quickAdd.querySelector("#quick-task-fields"), undefined, {
+      customTaskTypes: state.customTaskTypes,
+    });
 
     els.quickAdd.querySelector("#quick-add-cancel").addEventListener("click", () => {
       state.quickAddOpen = false;
@@ -377,7 +382,7 @@ export function renderSessionView(container) {
       const errorEl = els.quickAdd.querySelector("#quick-add-error");
       errorEl.hidden = true;
 
-      if (!title || !subjectTag || !taskTypeTag || !priorityTag) {
+      if (!title || !subjectTag || !taskTypeTag?.length || !priorityTag) {
         errorEl.textContent = "Escribe un título y elige asignatura, tipo y prioridad.";
         errorEl.hidden = false;
         return;
@@ -547,6 +552,7 @@ export function renderSessionView(container) {
         "52-17": { work: settings.default_5217_work_min, break: settings.default_5217_break_min },
       };
       state.checklistItems = [...settings.checklist_items];
+      state.customTaskTypes = [...settings.custom_task_types];
       if (state.mode === "pomodoro" || state.mode === "52-17") {
         state.workMinutes = state.modeDefaults[state.mode].work;
         state.breakMinutes = state.modeDefaults[state.mode].break;

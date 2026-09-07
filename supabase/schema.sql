@@ -11,7 +11,7 @@ create table if not exists daily_tasks (
   date date not null,
   title text not null,
   subject_tag text not null, -- asignatura normal o "Brevet - X" (misma columna, ver PROJECT_CONTEXT.md sección 5)
-  task_type_tag text not null,
+  task_type_tag text[] not null, -- hasta 3 tipos por tarea, validado en la app
   extra_tags jsonb,
   notes text, -- nota/detalle libre, opcional
   done boolean not null default false,
@@ -33,7 +33,7 @@ create table if not exists sessions (
   started_at timestamptz,
   ended_at timestamptz,
   subject_tag text not null,
-  task_type_tag text,
+  task_type_tag text[],
   extra_tags jsonb,
   completed boolean not null default false
 );
@@ -116,7 +116,8 @@ create table if not exists user_settings (
     "Tengo el material que necesito a mano",
     "Modo no molestar activado en Discord",
     "Estado de Discord puesto en \"Estudiando...\""
-  ]'::jsonb
+  ]'::jsonb,
+  custom_task_types jsonb not null default '[]'::jsonb -- tipos de tarea añadidos por el usuario, además de los fijos
 );
 
 -- Mazos de tarjetas de memorización
