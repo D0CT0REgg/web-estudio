@@ -80,7 +80,7 @@ export function renderSessionView(container) {
     checked: new Set(),
     goalText: "",
     checklistItems: [...DEFAULT_USER_SETTINGS.checklist_items],
-    customTaskTypes: [...DEFAULT_USER_SETTINGS.custom_task_types],
+    customSubjects: [...DEFAULT_USER_SETTINGS.custom_subjects],
   };
 
   const tipCache = new Map(); // phaseStartAt -> texto de consejo elegido para esa fase
@@ -298,8 +298,9 @@ export function renderSessionView(container) {
       : "Pulsa una tarea para seleccionarla.";
 
     els.taskList.innerHTML = state.tasks
-      .map(
-        (t) => `
+      .map((t) => {
+        const priority = t.extra_tags?.priority;
+        return `
           <div class="task-full-row clickable ${highlightedId === t.id ? "active" : ""}" data-task-id="${t.id}">
             <input type="checkbox" class="task-done-checkbox" ${t.done ? "checked" : ""} aria-label="Marcar tarea hecha" />
             <div class="task-full-info">
@@ -309,11 +310,13 @@ export function renderSessionView(container) {
                 ${(t.task_type_tag || [])
                   .map((type) => `<span class="tag-pill tag-pill-muted">${escapeHtml(type)}</span>`)
                   .join("")}
+                ${priority ? `<span class="tag-pill tag-pill-priority">${escapeHtml(priority)}</span>` : ""}
               </span>
+              ${t.notes ? `<span class="task-row-notes">${escapeHtml(t.notes)}</span>` : ""}
             </div>
           </div>
-        `
-      )
+        `;
+      })
       .join("");
 
     els.taskList.querySelectorAll(".task-full-row").forEach((row) => {
@@ -367,7 +370,7 @@ export function renderSessionView(container) {
     `;
 
     const fields = renderTaskFormFields(els.quickAdd.querySelector("#quick-task-fields"), undefined, {
-      customTaskTypes: state.customTaskTypes,
+      customSubjects: state.customSubjects,
     });
 
     els.quickAdd.querySelector("#quick-add-cancel").addEventListener("click", () => {
@@ -552,7 +555,7 @@ export function renderSessionView(container) {
         "52-17": { work: settings.default_5217_work_min, break: settings.default_5217_break_min },
       };
       state.checklistItems = [...settings.checklist_items];
-      state.customTaskTypes = [...settings.custom_task_types];
+      state.customSubjects = [...settings.custom_subjects];
       if (state.mode === "pomodoro" || state.mode === "52-17") {
         state.workMinutes = state.modeDefaults[state.mode].work;
         state.breakMinutes = state.modeDefaults[state.mode].break;

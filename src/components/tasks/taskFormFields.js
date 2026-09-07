@@ -10,13 +10,12 @@ const MAX_TASK_TYPES = 3;
  *
  * @param {object} [initial] valores iniciales, p.ej. al editar una tarea existente.
  * @param {object} [options]
- * @param {string[]} [options.customTaskTypes] tipos de tarea añadidos por el usuario en Ajustes,
- *   que se muestran como chips seleccionables además de los fijos de TASK_TYPES.
+ * @param {string[]} [options.customSubjects] asignaturas añadidas por el usuario en Ajustes, que
+ *   se muestran como chips seleccionables además de las fijas de SUBJECTS (no se mezclan con las
+ *   de Brevet, que son una lista oficial cerrada).
  * @returns {{ getValues: () => {subjectTag, taskTypeTag: string[], priorityTag} }}
  */
-export function renderTaskFormFields(container, initial = {}, { customTaskTypes = [] } = {}) {
-  const allTaskTypes = [...TASK_TYPES, ...customTaskTypes];
-
+export function renderTaskFormFields(container, initial = {}, { customSubjects = [] } = {}) {
   const state = {
     brevet: initial.subjectTag ? BREVET_SUBJECTS.includes(initial.subjectTag) : false,
     subject: initial.subjectTag ?? null,
@@ -42,7 +41,7 @@ export function renderTaskFormFields(container, initial = {}, { customTaskTypes 
 
   const rerenderSubjectChips = makeChipGroup(
     subjectChips,
-    () => (state.brevet ? BREVET_SUBJECTS : SUBJECTS),
+    () => (state.brevet ? BREVET_SUBJECTS : [...SUBJECTS, ...customSubjects]),
     () => state.subject,
     (v) => {
       state.subject = v;
@@ -51,7 +50,7 @@ export function renderTaskFormFields(container, initial = {}, { customTaskTypes 
 
   makeChipGroup(
     typeChips,
-    () => allTaskTypes,
+    () => TASK_TYPES,
     () => state.type,
     (v) => {
       state.type = v;

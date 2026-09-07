@@ -1,6 +1,6 @@
 import { fetchTrimesters, saveTrimester } from "../../lib/trimestersApi.js";
 import { fetchUserSettings, saveUserSettings, resetAllStudyData } from "../../lib/settingsApi.js";
-import { TASK_TYPES } from "../../lib/tags.js";
+import { SUBJECTS } from "../../lib/tags.js";
 import { escapeHtml } from "../../lib/escapeHtml.js";
 
 const TRIMESTER_LABELS = { 1: "1er trimestre", 2: "2º trimestre", 3: "3er trimestre" };
@@ -20,7 +20,7 @@ export function renderSettingsView(container) {
     academicYear: currentAcademicYearGuess(),
     trimesters: { 1: { start: "", end: "" }, 2: { start: "", end: "" }, 3: { start: "", end: "" } },
     checklistItems: [],
-    customTaskTypes: [],
+    customSubjects: [],
   };
 
   container.innerHTML = `
@@ -73,18 +73,19 @@ export function renderSettingsView(container) {
       </div>
 
       <div class="setup-block">
-        <h2>Tipos de tarea personalizados</h2>
+        <h2>Asignaturas personalizadas</h2>
         <p class="stats-subtitle" style="margin-top:0">
-          Se suman a los tipos fijos (Teoría, Ejercicios, Repaso…) al elegir el tipo de una tarea. Renombrar o
-          borrar uno aquí no cambia las tareas que ya lo usan, solo afecta a las que elijas a partir de ahora.
+          Se suman a las asignaturas fijas al elegir la asignatura de una tarea (no aplica a las de Brevet, que
+          son una lista oficial cerrada). Renombrar o borrar una aquí no cambia las tareas que ya la usan, solo
+          afecta a las que elijas a partir de ahora.
         </p>
-        <ul class="settings-checklist-list" id="custom-types-editor"></ul>
+        <ul class="settings-checklist-list" id="custom-subjects-editor"></ul>
         <div class="checklist-add-row">
-          <input type="text" id="new-custom-type" placeholder="Nuevo tipo…" />
-          <button type="button" class="ft-btn" id="add-custom-type-btn">+ Añadir</button>
+          <input type="text" id="new-custom-subject" placeholder="Nueva asignatura…" />
+          <button type="button" class="ft-btn" id="add-custom-subject-btn">+ Añadir</button>
         </div>
-        <p class="quick-add-error" id="custom-types-error" hidden></p>
-        <p class="goal-save-status" id="custom-types-status"></p>
+        <p class="quick-add-error" id="custom-subjects-error" hidden></p>
+        <p class="goal-save-status" id="custom-subjects-status"></p>
       </div>
 
       <div class="setup-block setup-block-danger">
@@ -151,11 +152,11 @@ export function renderSettingsView(container) {
     newChecklistItem: container.querySelector("#new-checklist-item"),
     addChecklistBtn: container.querySelector("#add-checklist-item-btn"),
     checklistStatus: container.querySelector("#checklist-status"),
-    customTypesEditor: container.querySelector("#custom-types-editor"),
-    newCustomType: container.querySelector("#new-custom-type"),
-    addCustomTypeBtn: container.querySelector("#add-custom-type-btn"),
-    customTypesError: container.querySelector("#custom-types-error"),
-    customTypesStatus: container.querySelector("#custom-types-status"),
+    customSubjectsEditor: container.querySelector("#custom-subjects-editor"),
+    newCustomSubject: container.querySelector("#new-custom-subject"),
+    addCustomSubjectBtn: container.querySelector("#add-custom-subject-btn"),
+    customSubjectsError: container.querySelector("#custom-subjects-error"),
+    customSubjectsStatus: container.querySelector("#custom-subjects-status"),
     openResetBtn: container.querySelector("#open-reset-modal-btn"),
     resetModal: container.querySelector("#reset-modal"),
     resetBackdrop: container.querySelector("#reset-modal-backdrop"),
@@ -314,96 +315,96 @@ export function renderSettingsView(container) {
     }
   });
 
-  // ---- Tipos de tarea personalizados ----
-  function isDuplicateTaskType(value, ignoreIndex = -1) {
+  // ---- Asignaturas personalizadas ----
+  function isDuplicateSubject(value, ignoreIndex = -1) {
     const lower = value.toLowerCase();
-    if (TASK_TYPES.some((t) => t.toLowerCase() === lower)) return true;
-    return state.customTaskTypes.some((t, i) => i !== ignoreIndex && t.toLowerCase() === lower);
+    if (SUBJECTS.some((s) => s.toLowerCase() === lower)) return true;
+    return state.customSubjects.some((s, i) => i !== ignoreIndex && s.toLowerCase() === lower);
   }
 
-  function renderCustomTypesEditor() {
-    if (state.customTaskTypes.length === 0) {
-      els.customTypesEditor.innerHTML = `<li class="task-list-empty">No hay tipos personalizados. Añade uno abajo.</li>`;
+  function renderCustomSubjectsEditor() {
+    if (state.customSubjects.length === 0) {
+      els.customSubjectsEditor.innerHTML = `<li class="task-list-empty">No hay asignaturas personalizadas. Añade una abajo.</li>`;
       return;
     }
-    els.customTypesEditor.innerHTML = state.customTaskTypes
+    els.customSubjectsEditor.innerHTML = state.customSubjects
       .map(
         (item, i) => `
           <li class="settings-checklist-row" data-index="${i}">
             <input type="text" class="settings-tag-edit-input" value="${escapeHtml(item)}" />
-            <button type="button" class="ft-icon-btn" data-action="remove-custom-type" aria-label="Eliminar tipo">🗑️</button>
+            <button type="button" class="ft-icon-btn" data-action="remove-custom-subject" aria-label="Eliminar asignatura">🗑️</button>
           </li>
         `
       )
       .join("");
 
-    els.customTypesEditor.querySelectorAll(".settings-tag-edit-input").forEach((input) => {
+    els.customSubjectsEditor.querySelectorAll(".settings-tag-edit-input").forEach((input) => {
       input.addEventListener("change", () => {
         const i = Number(input.closest("[data-index]").dataset.index);
         const value = input.value.trim();
-        els.customTypesError.hidden = true;
+        els.customSubjectsError.hidden = true;
 
-        if (!value || isDuplicateTaskType(value, i)) {
+        if (!value || isDuplicateSubject(value, i)) {
           if (!value) {
-            els.customTypesError.textContent = "El tipo no puede quedar vacío.";
+            els.customSubjectsError.textContent = "La asignatura no puede quedar vacía.";
           } else {
-            els.customTypesError.textContent = "Ya existe un tipo con ese nombre.";
+            els.customSubjectsError.textContent = "Ya existe una asignatura con ese nombre.";
           }
-          els.customTypesError.hidden = false;
-          input.value = state.customTaskTypes[i];
+          els.customSubjectsError.hidden = false;
+          input.value = state.customSubjects[i];
           return;
         }
 
-        state.customTaskTypes[i] = value;
+        state.customSubjects[i] = value;
         input.value = value;
-        saveCustomTypes();
+        saveCustomSubjects();
       });
     });
 
-    els.customTypesEditor.querySelectorAll('[data-action="remove-custom-type"]').forEach((btn) => {
+    els.customSubjectsEditor.querySelectorAll('[data-action="remove-custom-subject"]').forEach((btn) => {
       btn.addEventListener("click", () => {
         const i = Number(btn.closest("[data-index]").dataset.index);
-        state.customTaskTypes.splice(i, 1);
-        renderCustomTypesEditor();
-        saveCustomTypes();
+        state.customSubjects.splice(i, 1);
+        renderCustomSubjectsEditor();
+        saveCustomSubjects();
       });
     });
   }
 
-  async function saveCustomTypes() {
-    els.customTypesStatus.textContent = "Guardando…";
+  async function saveCustomSubjects() {
+    els.customSubjectsStatus.textContent = "Guardando…";
     try {
-      await saveUserSettings({ custom_task_types: state.customTaskTypes });
-      els.customTypesStatus.textContent = "Guardado";
+      await saveUserSettings({ custom_subjects: state.customSubjects });
+      els.customSubjectsStatus.textContent = "Guardado";
       setTimeout(() => {
-        if (els.customTypesStatus.textContent === "Guardado") els.customTypesStatus.textContent = "";
+        if (els.customSubjectsStatus.textContent === "Guardado") els.customSubjectsStatus.textContent = "";
       }, 1500);
     } catch (err) {
-      els.customTypesStatus.textContent = "No se pudo guardar";
+      els.customSubjectsStatus.textContent = "No se pudo guardar";
       console.error(err);
     }
   }
 
-  function addCustomType() {
-    const value = els.newCustomType.value.trim();
-    els.customTypesError.hidden = true;
+  function addCustomSubject() {
+    const value = els.newCustomSubject.value.trim();
+    els.customSubjectsError.hidden = true;
     if (!value) return;
-    if (isDuplicateTaskType(value)) {
-      els.customTypesError.textContent = "Ya existe un tipo con ese nombre.";
-      els.customTypesError.hidden = false;
+    if (isDuplicateSubject(value)) {
+      els.customSubjectsError.textContent = "Ya existe una asignatura con ese nombre.";
+      els.customSubjectsError.hidden = false;
       return;
     }
-    state.customTaskTypes.push(value);
-    els.newCustomType.value = "";
-    renderCustomTypesEditor();
-    saveCustomTypes();
+    state.customSubjects.push(value);
+    els.newCustomSubject.value = "";
+    renderCustomSubjectsEditor();
+    saveCustomSubjects();
   }
 
-  els.addCustomTypeBtn.addEventListener("click", addCustomType);
-  els.newCustomType.addEventListener("keydown", (e) => {
+  els.addCustomSubjectBtn.addEventListener("click", addCustomSubject);
+  els.newCustomSubject.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      addCustomType();
+      addCustomSubject();
     }
   });
 
@@ -463,7 +464,7 @@ export function renderSettingsView(container) {
   // ---- Carga inicial ----
   renderTrimesterRows();
   renderChecklistEditor();
-  renderCustomTypesEditor();
+  renderCustomSubjectsEditor();
   els.academicYearInput.value = state.academicYear;
 
   fetchTrimesters()
@@ -489,8 +490,8 @@ export function renderSettingsView(container) {
       els.c5217Break.value = settings.default_5217_break_min;
       state.checklistItems = [...settings.checklist_items];
       renderChecklistEditor();
-      state.customTaskTypes = [...settings.custom_task_types];
-      renderCustomTypesEditor();
+      state.customSubjects = [...settings.custom_subjects];
+      renderCustomSubjectsEditor();
     })
     .catch((err) => console.error(err));
 }

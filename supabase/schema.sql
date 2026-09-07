@@ -117,7 +117,7 @@ create table if not exists user_settings (
     "Modo no molestar activado en Discord",
     "Estado de Discord puesto en \"Estudiando...\""
   ]'::jsonb,
-  custom_task_types jsonb not null default '[]'::jsonb -- tipos de tarea añadidos por el usuario, además de los fijos
+  custom_subjects jsonb not null default '[]'::jsonb -- asignaturas añadidas por el usuario, además de las fijas
 );
 
 -- Mazos de tarjetas de memorización

@@ -20,7 +20,7 @@ export function renderTasksView(container) {
     tasksLoading: true,
     editingTaskId: null,
     quickAddOpen: false,
-    customTaskTypes: [...DEFAULT_USER_SETTINGS.custom_task_types],
+    customSubjects: [...DEFAULT_USER_SETTINGS.custom_subjects],
   };
 
   container.innerHTML = `
@@ -120,7 +120,7 @@ export function renderTasksView(container) {
     `;
 
     const fields = renderTaskFormFields(els.quickAdd.querySelector("#new-task-fields"), undefined, {
-      customTaskTypes: state.customTaskTypes,
+      customSubjects: state.customSubjects,
     });
 
     els.quickAdd.querySelector("#new-task-cancel").addEventListener("click", () => {
@@ -294,7 +294,7 @@ export function renderTasksView(container) {
         taskTypeTag: t.task_type_tag,
         priorityTag: t.extra_tags?.priority ?? null,
       },
-      { customTaskTypes: state.customTaskTypes }
+      { customSubjects: state.customSubjects }
     );
 
     row.querySelector('[data-action="cancel-edit"]').addEventListener("click", () => {
@@ -370,7 +370,7 @@ export function renderTasksView(container) {
 
   fetchUserSettings()
     .then((settings) => {
-      state.customTaskTypes = [...settings.custom_task_types];
+      state.customSubjects = [...settings.custom_subjects];
     })
     .catch((err) => console.error(err));
 }
