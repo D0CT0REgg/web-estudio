@@ -92,7 +92,7 @@ function downloadCsv(sessions) {
       end ? end.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "",
       s.mode,
       s.subject_tag || "",
-      s.task_type_tag || "",
+      Array.isArray(s.task_type_tag) ? s.task_type_tag.join("; ") : s.task_type_tag || "",
       s.planned_duration_min ?? "",
       s.actual_duration_min ?? "",
       s.completed ? "sí" : "no",
@@ -211,7 +211,8 @@ export function renderEstadisticasView(container) {
           </p>
           <div id="exam-average-line-chart"></div>
 
-          <h3 class="exam-stats-subheading">Media por asignatura — este trimestre</h3>
+          <h3 class="exam-stats-subheading">Media por asignatura — por trimestre</h3>
+          <div class="stats-range-selector" id="exam-trimester-tabs"></div>
           <p class="stats-subtitle" id="exam-trimester-label" style="margin-top:0"></p>
           <div class="subject-bars" id="exam-subject-bars-trimester"></div>
 
@@ -239,6 +240,7 @@ export function renderEstadisticasView(container) {
     hourHistogram: container.querySelector("#hour-histogram"),
     examSummaryCards: container.querySelector("#exam-summary-cards"),
     examAverageLineChart: container.querySelector("#exam-average-line-chart"),
+    examTrimesterTabs: container.querySelector("#exam-trimester-tabs"),
     examTrimesterLabel: container.querySelector("#exam-trimester-label"),
     examSubjectBarsTrimester: container.querySelector("#exam-subject-bars-trimester"),
     examSubjectBarsHistoric: container.querySelector("#exam-subject-bars-historic"),
@@ -572,19 +574,80 @@ export function renderEstadisticasView(container) {
       .join("");
   }
 
+  // ---- Trimestres: caché en memoria (para poder cambiar de pestaña sin volver a pedir datos) ----
+  let examsCache = [];
+  let trimestersCache = [];
+  let selectedTrimesterKey = null;
+
+  function trimesterKey(t) {
+    return `${t.academic_year}::${t.trimester_number}`;
+  }
+
+  function renderTrimesterTabs() {
+    if (trimestersCache.length === 0) {
+      els.examTrimesterTabs.innerHTML = "";
+      return;
+    }
+    els.examTrimesterTabs.innerHTML = trimestersCache
+      .map(
+        (t) => `
+          <button
+            type="button"
+            class="range-btn ${selectedTrimesterKey === trimesterKey(t) ? "active" : ""}"
+            data-trimester-key="${escapeHtml(trimesterKey(t))}"
+          >
+            T${t.trimester_number} · ${escapeHtml(t.academic_year)}
+          </button>
+        `
+      )
+      .join("");
+
+    els.examTrimesterTabs.querySelectorAll(".range-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedTrimesterKey = btn.dataset.trimesterKey;
+        renderTrimesterTabs();
+        renderTrimesterSection();
+      });
+    });
+  }
+
+  function renderTrimesterSection() {
+    const selected = trimestersCache.find((t) => trimesterKey(t) === selectedTrimesterKey);
+    const trimesterExams = selected ? filterByDateRange(examsCache, selected.start_date, selected.end_date) : [];
+    const bySubjectTrimester = computeAverageBySubject(trimesterExams);
+
+    els.examTrimesterLabel.textContent = selected
+      ? `Trimestre ${selected.trimester_number} (${selected.academic_year}): ${new Date(
+          selected.start_date
+        ).toLocaleDateString("es-ES")} – ${new Date(selected.end_date).toLocaleDateString("es-ES")}`
+      : "Todavía no tienes trimestres configurados (revísalo en Ajustes).";
+
+    renderExamSubjectBars(
+      els.examSubjectBarsTrimester,
+      bySubjectTrimester,
+      "Sin simulacros corregidos en este trimestre."
+    );
+  }
+
   function loadExamStats() {
     Promise.all([fetchExamSimulations(), fetchTrimesters()])
       .then(([exams, trimesters]) => {
+        examsCache = exams;
+        // orden cronológico real: trimester_number por sí solo no basta porque se reinicia
+        // en cada curso académico (1, 2, 3, 1, 2, 3…).
+        trimestersCache = [...trimesters].sort(
+          (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+        );
+
         const count = countCorrectedExams(exams);
         const overallHistoric = computeOverallAverage(exams);
         const bySubjectHistoric = computeAverageBySubject(exams);
 
         const currentTrimester = findCurrentTrimester(trimesters);
-        const trimesterExams = currentTrimester
+        const currentTrimesterExams = currentTrimester
           ? filterByDateRange(exams, currentTrimester.start_date, currentTrimester.end_date)
           : [];
-        const overallTrimester = computeOverallAverage(trimesterExams);
-        const bySubjectTrimester = computeAverageBySubject(trimesterExams);
+        const overallCurrentTrimester = computeOverallAverage(currentTrimesterExams);
 
         els.examSummaryCards.innerHTML = `
           <div class="summary-card">
@@ -594,7 +657,7 @@ export function renderEstadisticasView(container) {
           </div>
           <div class="summary-card">
             <span class="summary-icon" aria-hidden="true">📅</span>
-            <span class="summary-value">${overallTrimester !== null ? overallTrimester.toFixed(1) : "—"}/20</span>
+            <span class="summary-value">${overallCurrentTrimester !== null ? overallCurrentTrimester.toFixed(1) : "—"}/20</span>
             <span class="summary-label">Media general — este trimestre</span>
           </div>
           <div class="summary-card">
@@ -606,17 +669,20 @@ export function renderEstadisticasView(container) {
 
         renderExamAverageLineChart(computeRunningAverageSeries(exams), trimesters);
 
-        els.examTrimesterLabel.textContent = currentTrimester
-          ? `Trimestre ${currentTrimester.trimester_number} (${currentTrimester.academic_year}): ${new Date(
-              currentTrimester.start_date
-            ).toLocaleDateString("es-ES")} – ${new Date(currentTrimester.end_date).toLocaleDateString("es-ES")}`
-          : "No tienes un trimestre configurado para la fecha de hoy (revísalo en Ajustes).";
+        // por defecto se selecciona el trimestre actual; si no hay ninguno configurado para
+        // hoy, el más reciente. Si ya había una pestaña elegida (recarga de datos) se respeta.
+        const stillValid = trimestersCache.some((t) => trimesterKey(t) === selectedTrimesterKey);
+        if (!stillValid) {
+          selectedTrimesterKey = currentTrimester
+            ? trimesterKey(currentTrimester)
+            : trimestersCache.length > 0
+              ? trimesterKey(trimestersCache[trimestersCache.length - 1])
+              : null;
+        }
 
-        renderExamSubjectBars(
-          els.examSubjectBarsTrimester,
-          bySubjectTrimester,
-          "Sin simulacros corregidos en el trimestre actual."
-        );
+        renderTrimesterTabs();
+        renderTrimesterSection();
+
         renderExamSubjectBars(els.examSubjectBarsHistoric, bySubjectHistoric, "Todavía no hay simulacros corregidos.");
       })
       .catch((err) => {
